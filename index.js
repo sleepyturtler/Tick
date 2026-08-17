@@ -155,6 +155,7 @@ async function buildServerStatsEmbed(guild) {
     return E('#5865F2',`\u{1F4CA} Server Stats \u2014 ${guild.name}`).setThumbnail(guild.iconURL()).addFields(
         {name:'\u{1F465} Counters',value:`**${tu}**`,inline:true},{name:'\u2705 Correct',value:`**${tc}**`,inline:true},{name:'\u{1F4A5} Ruined',value:`**${tr}**`,inline:true},
         {name:'\u{1F3AF} Accuracy',value:`**${ac}%**`,inline:true},{name:'\u{1F522} Current',value:`**${gs.current}**`,inline:true},{name:'\u{1F3C6} High score',value:`**${gs.highScore}**`,inline:true},
+        {name:'\u{1F6E1}\ufe0f Saves',value:`**${gs.saves??0}**`,inline:true},
         {name:`${MODE_EMOJI[gs.countType??'interactive']} Mode`,value:`**${MODE_LABEL[gs.countType??'interactive']}**`,inline:true},...extra,
     );
 }
@@ -585,7 +586,13 @@ client.on('interactionCreate',async interaction=>{
             await interaction.deferReply(ep());
             const input=options.getString('input').trim(),evaluated=safeMath(input),looksLikeNumber=/^[\d]+$/.test(input.replace(/\s/g,''));
             if(looksLikeNumber&&evaluated!==null){const exprs=generateExpressions(evaluated);const copyRow=new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(`calc_copy_0_${exprs[0]}`).setLabel(`Copy: ${exprs[0]}`).setStyle(ButtonStyle.Secondary),new ButtonBuilder().setCustomId(`calc_copy_1_${exprs[1]}`).setLabel(`Copy: ${exprs[1]}`).setStyle(ButtonStyle.Secondary),new ButtonBuilder().setCustomId(`calc_copy_2_${exprs[2]}`).setLabel(`Copy: ${exprs[2]}`).setStyle(ButtonStyle.Secondary),);return interaction.editReply({embeds:[E('#5865F2',`Ways to write ${evaluated}`).setDescription(`3 expressions for **${evaluated}**:`).addFields(...exprs.map((x,i)=>({name:`${['\u0031\ufe0f\u20e3','\u0032\ufe0f\u20e3','\u0033\ufe0f\u20e3'][i]} \`${x}\``,value:`= **${safeMath(x)??evaluated}**`,inline:true}))).setFooter({text:'Supports: + - * / ^ pi phi e tau sqrt2 \u00b7 ln log sin cos tan sqrt cbrt'})],components:[copyRow]});}
-            if(evaluated!==null)return interaction.editReply({embeds:[E('#5865F2','Result').addFields({name:'Expression',value:`\`${input}\``,inline:true},{name:'Result',value:`**${evaluated}**`,inline:true}).setFooter({text:'Rounded to nearest whole number'})]});
+            if(evaluated!==null){
+                const resultEmbed=E('#5865F2','Result').addFields({name:'Expression',value:`\`${input}\``,inline:true},{name:'Result',value:`**${evaluated}**`,inline:true}).setFooter({text:'Rounded to nearest whole number'});
+                const canCopy=Buffer.byteLength(`calc_copy_0_${input}`,'utf8')<=100;
+                const reply={embeds:[resultEmbed]};
+                if(canCopy)reply.components=[new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(`calc_copy_0_${input}`).setLabel('Copy expression').setStyle(ButtonStyle.Secondary))];
+                return interaction.editReply(reply);
+            }
             return interaction.editReply({embeds:[E('#ff4444','Invalid expression').setDescription(`\`${input}\` couldn't be evaluated.\n\nConstants: \`pi\` \`phi\` \`e\` \`tau\` \`sqrt2\``)]});
         }
         if(cmd==='stats'){await interaction.deferReply(ep());const u=options.getUser('user')??interaction.user;return interaction.editReply({embeds:[await buildUserStatsEmbed(gid,u)],components:[statsRow(u.id,gid,'user')]});}
