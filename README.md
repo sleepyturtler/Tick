@@ -1,5 +1,5 @@
 # Description
-The best counting bot out there, featuring multiply modes, endless customization and fun modifiers.
+The best counting bot out there, featuring multiple modes, endless customization and fun modifiers.
 
 # Commands
 
