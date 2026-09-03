@@ -1,6 +1,6 @@
 const { Client, GatewayIntentBits, SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, ActivityType, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle, RoleSelectMenuBuilder, ChannelSelectMenuBuilder, ChannelType } = require('discord.js');
 const { Pool } = require('pg');
-// require('dns').setDefaultResultOrder('ipv4first'); // TEMP: disabled to test login hang
+require('dns').setDefaultResultOrder('ipv4first');
 const http = require('http');
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] });
@@ -242,6 +242,7 @@ const CCONSTS={pi:new C(Math.PI),e:new C(Math.E),phi:new C((1+Math.sqrt(5))/2),t
 function lambertW(x){if(x<-1/Math.E)return NaN;let w=x<1?x:Math.log(x);for(let i=0;i<100;i++){const ew=Math.exp(w),f=w*ew-x,df=ew*(w+1);const dw=f/(df-(w+2)*f/(2*(w+1)));w-=dw;if(Math.abs(dw)<1e-12)break;}return w;}
 const CFUNCS={floor:v=>new C(Math.floor(v.r)),ceil:v=>new C(Math.ceil(v.r)),round:v=>new C(Math.round(v.r)),abs:v=>new C(Math.hypot(v.r,v.i)),ln:v=>new C(Math.log(v.r)),log:v=>new C(Math.log10(v.r)),log2:v=>new C(Math.log2(v.r)),log10:v=>new C(Math.log10(v.r)),exp:v=>new C(Math.exp(v.r)),sin:v=>new C(Math.sin(v.r)),cos:v=>new C(Math.cos(v.r)),tan:v=>new C(Math.tan(v.r)),asin:v=>new C(Math.asin(v.r)),acos:v=>new C(Math.acos(v.r)),atan:v=>new C(Math.atan(v.r)),sinh:v=>new C(Math.sinh(v.r)),cosh:v=>new C(Math.cosh(v.r)),tanh:v=>new C(Math.tanh(v.r)),arcsin:v=>new C(Math.asin(v.r)),arccos:v=>new C(Math.acos(v.r)),arctan:v=>new C(Math.atan(v.r)),lambertw:v=>new C(lambertW(v.r)),lw:v=>new C(lambertW(v.r)),w:v=>new C(lambertW(v.r))};
 const CONSTS={phi:(1+Math.sqrt(5))/2,pi:Math.PI,e:Math.E,tau:Math.PI*2,sqrt2:Math.SQRT2};
+function factorial(v){if(!v.isReal())return new C(NaN,NaN);const n=v.r;if(n<0||Math.abs(n-Math.round(n))>1e-9)return new C(NaN,NaN);const r=Math.round(n);if(r>170)return new C(Infinity,0);let result=1;for(let i=2;i<=r;i++)result*=i;return new C(result,0);}
 function safeMath(expr){
     let s=expr.trim(),norm='';
     for(let k=0;k<s.length;k++){if(SUP[s[k]]!==undefined){let sup='';while(k<s.length&&SUP[s[k]]!==undefined)sup+=SUP[s[k++]];norm+='^'+sup;k--;}else norm+=s[k];}
@@ -249,16 +250,17 @@ function safeMath(expr){
     s=s.replace(/(?<=[\d)])x(?=[\d(])/g,'*').replace(/\*\*/g,'^').replace(/(\d+)\u221a/g,(_,n)=>`nrt${n}(`).replace(/\u221c/g,'nrt4(').replace(/\u221b/g,'cbrt(').replace(/\u221a/g,'sqrt(');
     if(/[+\-]{2,}/.test(s))return null;
     let tokens=[],k=0;
-    while(k<s.length){if(/\d/.test(s[k])||s[k]==='.'){let n='';while(k<s.length&&(/\d/.test(s[k])||s[k]==='.')){ n+=s[k++];}tokens.push({t:'n',v:parseFloat(n)});}else if(/[a-z]/.test(s[k])){let id='';while(k<s.length&&/[a-z0-9]/.test(s[k]))id+=s[k++];tokens.push({t:'id',v:id});}else if('+-*/^(),'.includes(s[k])){tokens.push({t:'op',v:s[k++]});}else k++;}
+    while(k<s.length){if(/\d/.test(s[k])||s[k]==='.'){let n='';while(k<s.length&&(/\d/.test(s[k])||s[k]==='.')){ n+=s[k++];}tokens.push({t:'n',v:parseFloat(n)});}else if(/[a-z]/.test(s[k])){let id='';while(k<s.length&&/[a-z0-9]/.test(s[k]))id+=s[k++];tokens.push({t:'id',v:id});}else if('+-*/^(),!'.includes(s[k])){tokens.push({t:'op',v:s[k++]});}else k++;}
     const FUNCS=new Set(['sqrt','cbrt','floor','ceil','round','abs','ln','log','log2','log10','exp','sin','cos','tan','asin','acos','atan','arcsin','arccos','arctan','sinh','cosh','tanh','lambertw','lw','w','pow']);
     const isFunc=v=>FUNCS.has(v)||/^nrt\d+$/.test(v);
     const out=[];
-    for(let j=0;j<tokens.length;j++){out.push(tokens[j]);const cur=tokens[j],nxt=tokens[j+1];if(!nxt)continue;const lOk=cur.t==='n'||(cur.t==='id'&&!isFunc(cur.v))||(cur.t==='op'&&cur.v===')');const rOk=nxt.t==='n'||nxt.t==='id'||(nxt.t==='op'&&nxt.v==='(');const fc=nxt.t==='op'&&nxt.v==='('&&cur.t==='id'&&isFunc(cur.v);if(lOk&&rOk&&!fc)out.push({t:'op',v:'*'});}
+    for(let j=0;j<tokens.length;j++){out.push(tokens[j]);const cur=tokens[j],nxt=tokens[j+1];if(!nxt)continue;const lOk=cur.t==='n'||(cur.t==='id'&&!isFunc(cur.v))||(cur.t==='op'&&(cur.v===')'||cur.v==='!'));const rOk=nxt.t==='n'||nxt.t==='id'||(nxt.t==='op'&&nxt.v==='(');const fc=nxt.t==='op'&&nxt.v==='('&&cur.t==='id'&&isFunc(cur.v);if(lOk&&rOk&&!fc)out.push({t:'op',v:'*'});}
     tokens=out;let pos=0;const peek=()=>tokens[pos],consume=()=>tokens[pos++];
     function parseExpr(){let l=parseTerm();while(peek()&&(peek().v==='+'||peek().v==='-')){const op=consume().v;const r=parseTerm();l=op==='+'?l.add(r):l.sub(r);}return l;}
     function parseTerm(){let l=parsePow();while(peek()&&(peek().v==='*'||peek().v==='/')){const op=consume().v;const r=parsePow();l=op==='*'?l.mul(r):l.div(r);}return l;}
     function parsePow(){const b=parseUnary();if(peek()&&peek().v==='^'){consume();return b.pow(parsePow());}return b;}
-    function parseUnary(){if(peek()&&peek().v==='-'){consume();return parseUnary().neg();}if(peek()&&peek().v==='+'){consume();return parseUnary();}return parseAtom();}
+    function parseUnary(){if(peek()&&peek().v==='-'){consume();return parseUnary().neg();}if(peek()&&peek().v==='+'){consume();return parseUnary();}return parsePostfix();}
+    function parsePostfix(){let v=parseAtom();while(peek()&&peek().v==='!'){consume();v=factorial(v);}return v;}
     function parseAtom(){const tok=peek();if(!tok)throw new Error('unexpected end');if(tok.t==='n'){consume();return new C(tok.v,0);}if(tok.t==='id'){consume();if(peek()&&peek().v==='('){consume();const arg=parseExpr();const arg2=peek()&&peek().v===','?(consume(),parseExpr()):null;if(peek()&&peek().v===')')consume();if(tok.v==='pow'){if(arg2===null)throw new Error('pow requires 2 args');return arg.pow(arg2);}if(tok.v==='sqrt')return arg2===null?arg.sqrt():arg.nthRoot(arg2.r);if(tok.v==='cbrt')return arg.cbrt();if(CFUNCS[tok.v])return CFUNCS[tok.v](arg);if(/^nrt(\d+)$/.test(tok.v))return arg.nthRoot(parseInt(tok.v.slice(3)));throw new Error('unknown fn: '+tok.v);}if(CCONSTS[tok.v])return CCONSTS[tok.v];throw new Error('unknown id: '+tok.v);}if(tok.t==='op'&&tok.v==='('){consume();const val=parseExpr();if(peek()&&peek().v===')')consume();return val;}throw new Error('unexpected: '+JSON.stringify(tok));}
     try{const res=parseExpr();if(!res.isReal()||!isFinite(res.r)||isNaN(res.r))return null;const r=Math.round(res.r);return Math.abs(r)>10_000_000?null:r;}catch{return null;}
 }
@@ -338,7 +340,8 @@ function resetOnModeSwitch(gid,state,newType,guild){
 }
 async function triggerRuin(channel,gid,state,userId,reason){
     const prev=state.current,expiresAt=Date.now()+60_000;
-    state.pendingSave={placeholder:true,userId,prevCount:prev,expiresAt};saveState(gid,state);
+    const prevLastUserId=state.lastUserId,prevConsecutive=state.consecutiveCount;
+    state.pendingSave={placeholder:true,userId,prevCount:prev,expiresAt,prevLastUserId,prevConsecutive};saveState(gid,state);
     if((state.saves??0)>0&&state.countType!=='simple'&&state.countType!=='countdown'){
         const row=new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId(`saveuse_${userId}_${prev}_${gid}_${expiresAt}`).setLabel(`Use Save (${state.saves} left)`).setStyle(ButtonStyle.Success),
@@ -346,7 +349,7 @@ async function triggerRuin(channel,gid,state,userId,reason){
         );
         const prompt=await channel.send({embeds:[E('#ff9900','\u26a0\ufe0f Count almost ruined!').setDescription(`<@${userId}> made a mistake! (${reason})\nYou have a **Save** \u2014 use it within **1 minute** to keep the count at **${prev}**!`).addFields({name:'Server saves',value:`**${state.saves}**`,inline:true},{name:'At risk',value:`**${prev}**`,inline:true})],components:[row]}).catch(e=>{console.error('triggerRuin save prompt failed:',e.message);return null;});
         if(!prompt){doReset(gid,state,userId);return;}
-        state.pendingSave={msgId:prompt.id,userId,prevCount:prev,expiresAt};saveState(gid,state);
+        state.pendingSave={msgId:prompt.id,userId,prevCount:prev,expiresAt,prevLastUserId,prevConsecutive};saveState(gid,state);
         setTimeout(async()=>{
             const fresh=await getState(gid);if(!fresh.pendingSave||fresh.pendingSave.expiresAt!==expiresAt)return;
             doReset(gid,fresh,userId);
@@ -424,7 +427,7 @@ client.on('messageCreate',async message=>{
     const raw=message.content.trim();
     const hasConst=Object.keys(CONSTS).some(c=>new RegExp(`(?<![a-z])${c}(?![a-z])`,'i').test(raw));
     const hasFancyOp=/[\u00d7\u00b7\u00f7\u00b2\u00b3\u00b9\u2070\u2074\u2075\u2076\u2077\u2078\u2079\u207a\u207b\u221a\u221b\u221c]/.test(raw)||/\d[xX]\d/.test(raw);
-    const isExpr=(/[+\-*/^()]/.test(raw)&&!/^\-?\d+$/.test(raw))||hasConst||hasFancyOp;
+    const isExpr=(/[+\-*/^()!]/.test(raw)&&!/^\-?\d+$/.test(raw))||hasConst||hasFancyOp;
     const value=safeMath(raw);
     const NE=['\u0030\ufe0f\u20e3','\u0031\ufe0f\u20e3','\u0032\ufe0f\u20e3','\u0033\ufe0f\u20e3','\u0034\ufe0f\u20e3','\u0035\ufe0f\u20e3','\u0036\ufe0f\u20e3','\u0037\ufe0f\u20e3','\u0038\ufe0f\u20e3','\u0039\ufe0f\u20e3'];
 
@@ -517,10 +520,10 @@ client.on('interactionCreate',async interaction=>{
             const parts=id.split('_'),action=parts[0],ownerId=parts[1],prevCount=parseInt(parts[2]),btnGid=parts[3],expiresAt=parseInt(parts[4]);
             if(interaction.user.id!==ownerId)return interaction.reply({content:'Only the person who ruined the count can do this!',...ep()});
             if(Date.now()>expiresAt)return interaction.reply({content:'Save prompt has expired.',...ep()});
-            const state=await getState(btnGid);delete state.pendingSave;
+            const state=await getState(btnGid);const pending=state.pendingSave;delete state.pendingSave;
             if(action==='saveuse'){
                 if((state.saves??0)<1)return interaction.reply({content:'The server has no saves left.',...ep()});
-                state.current=prevCount;state.lastUserId=ownerId;state.consecutiveCount=1;state.saves=(state.saves??1)-1;state.savesUsed=(state.savesUsed??0)+1;
+                state.current=prevCount;state.lastUserId=pending?.prevLastUserId??null;state.consecutiveCount=pending?.prevConsecutive??0;state.saves=(state.saves??1)-1;state.savesUsed=(state.savesUsed??0)+1;
                 saveState(btnGid,state);await updateUserStat(btnGid,ownerId,{savesUsed:1});
                 const nextNum=state.countType==='countdown'?prevCount-1:prevCount+1;
                 return interaction.update({embeds:[E('#00cc88','\u{1F6E1}\ufe0f Save used!').setDescription(`<@${ownerId}> used a **Save** \u2014 count stays at **${prevCount}**!`).addFields({name:'Remaining',value:`**${state.saves}**`,inline:true},{name:'Next number',value:`**${nextNum}**`,inline:true})],components:[]});
@@ -644,18 +647,9 @@ client.on('interactionCreate',async interaction=>{
     }
 });
 
-process.on('unhandledRejection',e=>console.error('unhandledRejection:',e));
-process.on('uncaughtException',e=>console.error('uncaughtException:',e));
+process.on('unhandledRejection',e=>console.error(e));
 client.on('error',e=>console.error('Discord error:',e));
-client.on('shardError',e=>console.error('Shard error:',e));
-client.on('debug',m=>{ if(/token|identify|resum/i.test(m)) console.log('[debug]',m); });
-
-console.log('DISCORD_TOKEN present:', !!process.env.DISCORD_TOKEN, 'length:', process.env.DISCORD_TOKEN?.length);
-console.log('Attempting login...');
-const loginWatchdog = setTimeout(()=>console.error('LOGIN HUNG: no resolve/reject after 20s — likely network/DNS issue reaching Discord gateway'), 20000);
-client.login(process.env.DISCORD_TOKEN)
-    .then(()=>{clearTimeout(loginWatchdog);console.log('Login promise resolved');})
-    .catch(e=>{clearTimeout(loginWatchdog);console.error('LOGIN FAILED:', e?.message ?? e);});
+client.login(process.env.DISCORD_TOKEN);
 
 const PORT=process.env.PORT||3000;
-http.createServer((req,res)=>{const ok=req.url==='/'||req.url==='/health';res.writeHead(ok?200:404,{'Content-Type':'text/plain'});res.end(ok?'Counting bot running!':'Not found');}).listen(PORT,()=>console.log(`HTTP on port ${PORT}`));
+http.createServer((req,res)=>{const ok=req.url==='/'||req.url==='/health';res.writeHead(ok?200:404,{'Content-Type':'text/plain'});res.end(ok?'Tick is running!':'Not found');}).listen(PORT,()=>console.log(`HTTP on port ${PORT}`));
