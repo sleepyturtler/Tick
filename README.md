@@ -22,3 +22,8 @@ The best counting bot out there, featuring multiple modes, endless customization
 - **/calculate:** Enter a number to get 3 ways to calculate it or enter an expression to evaluate it.
 - **/invite:** Generates an invite link with all the needed permissions.
 - **/help:** Lists all the commands and provides other useful info.
+
+# AI Use:
+- The bot is mostly vibecoded with Claude, however
+- A lot of effort, manual bugtesting and time has went into making this bot super polished.
+- The bot is something I am passionate about, and me using AI does not change the fact that I worked very hard to make it.
