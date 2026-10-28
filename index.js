@@ -22,6 +22,7 @@ pool.on('error', e => console.error('pg pool error:', e.message));
 const PS = 25, SLB_MAX = 100;
 const COUNTDOWN_START = 100, FLOOR_SIZE = 100;
 const MAX_COUNTING_CHANNELS = envInt('MAX_COUNTING_CHANNELS', 10);
+const MAX_SAVES = envInt('MAX_SAVES', 5);
 const MODES = ['interactive', 'simple', 'countdown', 'modifiers', 'floors'];
 const safeMode = m => MODES.includes(m) ? m : null;
 const usesSaves = t => t === 'interactive' || t === 'modifiers' || t === 'floors';
@@ -96,6 +97,8 @@ function normChan(d) {
     const c = { ...defaultChannel(d.guildId, d.channelId), ...d };
     if (c.countType === 'random') c.countType = 'modifiers';
     if (!safeMode(c.countType)) c.countType = 'interactive';
+    // Channels from before milestone tracking: treat everything up to the high score as already paid out.
+    if (c.savesAwardedUpTo == null) c.savesAwardedUpTo = c.highScore || 0;
     return c;
 }
 function indexChan(c) {
@@ -564,6 +567,7 @@ function doReset(g, c, userId) {
 }
 function switchMode(guild, c, newType) {
     c.countType = newType;
+    c.savesAwardedUpTo = 0;
     resetChannel(c, true);
     saveChan(c);
     announce(guild, c, E('#ff9900', `${MODE_EMOJI[newType]} Switched to ${MODE_LABEL[newType]} mode`).setDescription(`Count reset.\n${modeIntro(c)}`));
@@ -753,13 +757,16 @@ async function handleCount(message){
         await triggerRuin(message.channel,g,c,message.author.id,`counted more than **${g.maxStreak}** time(s) in a row`);
         return;
     }
-    const same=message.author.id===c.lastUserId,prevHigh=c.highScore;
+    const same=message.author.id===c.lastUserId;
     c.current=value;c.lastUserId=message.author.id;c.consecutiveCount=same?c.consecutiveCount+1:1;c.lastMessageId=message.id;
     if(type!=='countdown'&&value>c.highScore)c.highScore=value;
     if(type==='floors'&&value%FLOOR_SIZE===0&&value>c.checkpoint)c.checkpoint=value;
     saveChan(c);updateUserStat(gid,message.author.id,{correct:1});
-    // Floors only pay out saves for new highs, otherwise replaying a floor would farm them.
-    if(usesSaves(type)&&earnsSave(value)&&(type!=='floors'||value>prevHigh)){g.saves=(g.saves??0)+1;saveGuild(gid,g);await message.channel.send({embeds:[E('#ffd700','\u{1F6E1}\ufe0f Save earned!').setDescription(`The server earned a **Save** for reaching **${value}**!\nThe server now has **${g.saves}** save(s). Next save at **${nextSaveAt(value)}**.`)]}).catch(()=>{});}
+    // Each milestone pays out once per channel (tracked in savesAwardedUpTo), and the server can hold at most MAX_SAVES.
+    if(usesSaves(type)&&earnsSave(value)&&value>(c.savesAwardedUpTo??0)){
+        if((g.saves??0)>=MAX_SAVES){await message.channel.send({embeds:[E('#888888','\u{1F6E1}\ufe0f Saves are full').setDescription(`Milestone **${value}** reached, but the server is already holding the maximum of **${MAX_SAVES}** saves. Use one and you can still earn it.`)]}).catch(()=>{});}
+        else{c.savesAwardedUpTo=value;saveChan(c);g.saves=(g.saves??0)+1;saveGuild(gid,g);await message.channel.send({embeds:[E('#ffd700','\u{1F6E1}\ufe0f Save earned!').setDescription(`The server earned a **Save** for reaching **${value}**!\nThe server now has **${g.saves}**/${MAX_SAVES} save(s). Next save at **${nextSaveAt(value)}**.`)]}).catch(()=>{});}
+    }
     await message.react(type==='modifiers'?'\u2705':(value<=9&&value>=0?NE[value]:'\u2705')).catch(()=>{});
 
     if(type==='countdown'){
