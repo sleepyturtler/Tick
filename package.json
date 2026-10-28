@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node index.js"
   },
-  "keywords": ["discord", "bot", "moderation", "warnings"],
+  "keywords": ["discord", "bot", "counting"],
   "author": "sleepy",
   "license": "MIT",
   "dependencies": {
