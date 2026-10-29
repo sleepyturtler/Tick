@@ -248,8 +248,8 @@ function resolveCounting(interaction, opt) {
     }
     const c = cid ? chanCache.get(cid) : null;
     if (c && c.guildId === gid) return { c };
-    if (opt) return { error: `${opt} isn't a counting channel. Add it with \`/config channel\` first.` };
-    if (!list.length) return { error: 'No counting channel set up yet. Use `/config channel` or `/setup`.' };
+    if (opt) return { error: `${opt} isn't a counting channel. Add it with \`/countingchannel\` first.` };
+    if (!list.length) return { error: 'No counting channel set up yet. Use `/countingchannel` or `/setup`.' };
     return { error: 'You have more than one counting channel. Pick one with the `channel` option, or run this command inside it.' };
 }
 
@@ -406,6 +406,16 @@ function paginationRow(type,ctx,page,tp){const base=ctx?`lb_${type}_${ctx}`:`lb_
 function globalTabRows(active){return[new ActionRowBuilder().addComponents(B('lbt_gu','\u{1F465} Users',active==='gu'),B('lbt_gs_interactive','\u{1F3AE} Interactive',active==='gs_interactive'),B('lbt_gs_simple','\u{1F7E2} Simple',active==='gs_simple')),new ActionRowBuilder().addComponents(B('lbt_gs_countdown','\u23f3 Countdown',active==='gs_countdown'),B('lbt_gs_modifiers','\u{1F3B2} Modifiers',active==='gs_modifiers'),B('lbt_gs_floors','\u{1F3E2} Floors',active==='gs_floors'))];}
 function highscoreTabRow(active){return new ActionRowBuilder().addComponents(B('hst_interactive','\u{1F3AE} Interactive',active==='interactive'),B('hst_simple','\u{1F7E2} Simple',active==='simple'),B('hst_countdown','\u23f3 Countdown',active==='countdown'),B('hst_modifiers','\u{1F3B2} Modifiers',active==='modifiers'),B('hst_floors','\u{1F3E2} Floors',active==='floors'));}
 function countTypeRow(current,cid){return new ActionRowBuilder().addComponents(...MODES.map(m=>B(`ct_${m}_${cid}`,`${MODE_EMOJI[m]} ${MODE_LABEL[m]}`,current===m)));}
+function buildChannelsPanel(gid){
+    const chans=channelsOf(gid);
+    return {
+        embeds:[E('#5865F2','\u{1F4CD} Counting Channels').setDescription(chans.length?chans.map(channelLine).join('\n').slice(0,4000):'No counting channels yet \u2014 press **Add Channel** to set one up.').setFooter({text:`${chans.length}/${MAX_COUNTING_CHANNELS} channels`})],
+        components:[new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId('cc_add').setLabel('Add Channel').setStyle(ButtonStyle.Primary).setDisabled(chans.length>=MAX_COUNTING_CHANNELS),
+            new ButtonBuilder().setCustomId('cc_remove').setLabel('Remove Channel').setStyle(ButtonStyle.Danger).setDisabled(!chans.length),
+        )],
+    };
+}
 function pickerRow(gid,purpose){
     const opts=channelsOf(gid).slice(0,25).map(c=>({label:`#${chanName(c.channelId)??c.channelId}`.slice(0,100),description:`${MODE_LABEL[c.countType]} \u00b7 ${showCur(c)}`.slice(0,100),value:c.channelId}));
     return new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId(`pick_${purpose}`).setPlaceholder('Select a counting channel').addOptions(opts));
@@ -469,14 +479,13 @@ function buildHelpPage(page){
         ).setFooter({text:'Page 1/5'}),
         E('#5865F2','Commands').setDescription('All commands:').addFields(
             {name:'Counting',value:'`/counting reset`'},
-            {name:'Config',value:'`/config channel` `/config removechannel` `/config setcount` `/config view` `/config maxstreak` `/config expressions` `/config access` `/config counttype` `/config failrole` `/config anticheat`'},
+            {name:'Config',value:'`/countingchannel` `/config setcount` `/config view` `/config maxstreak` `/config expressions` `/config access` `/config counttype` `/config failrole` `/config anticheat`'},
             {name:'Stats',value:'`/stats [user]` `/leaderboard server` `/leaderboard global` `/leaderboard highscores`'},
             {name:'Utilities',value:'`/calculate [expression]` `/invite` `/help` `/setup`'},
             {name:'\u{1F6E0}\ufe0f Support Server',value:`Need help or want to report a bug? [Join the support server](${SUPPORT_URL})`},
         ).setFooter({text:'Page 2/5'}),
         E('#5865F2','Config').setDescription('Requires Administrator or configured access role.').addFields(
-            {name:'/config channel <channel> [mode]',value:'Add a counting channel (text, announcement or forum)'},
-            {name:'/config removechannel <channel>',value:'Stop counting in a channel'},
+            {name:'/countingchannel',value:'Shows your counting channels with Add Channel and Remove Channel buttons'},
             {name:'/config counttype [channel]',value:'Switch a channel between Interactive, Simple, Countdown, Modifiers and Floors'},
             {name:'/config maxstreak <n>',value:'Max consecutive counts per user (1\u2013100)'},
             {name:'/config expressions <bool>',value:'Allow/block math expressions'},
@@ -659,9 +668,8 @@ client.once('ready',async()=>{
     const chanOpt=(o,desc,req=false)=>o.setName('channel').setDescription(desc).addChannelTypes(...COUNTING_CHANNEL_TYPES).setRequired(req);
     const cmds=[
         new SlashCommandBuilder().setName('counting').setDescription('Configure or view the counting game').addSubcommand(s=>s.setName('reset').setDescription('Manually reset the count').addChannelOption(o=>chanOpt(o,'Counting channel to reset'))),
+        new SlashCommandBuilder().setName('countingchannel').setDescription('View, add or remove counting channels'),
         new SlashCommandBuilder().setName('config').setDescription('Configure bot settings')
-            .addSubcommand(s=>s.setName('channel').setDescription('Add a counting channel').addChannelOption(o=>chanOpt(o,'Channel to count in',true)).addStringOption(o=>o.setName('mode').setDescription('Counting mode (default: Interactive)').addChoices(...MODE_CHOICES)))
-            .addSubcommand(s=>s.setName('removechannel').setDescription('Stop counting in a channel').addChannelOption(o=>chanOpt(o,'Counting channel to remove',true)))
             .addSubcommand(s=>s.setName('setcount').setDescription('Set the current count').addIntegerOption(o=>o.setName('number').setDescription('Number').setRequired(true).setMinValue(0).setMaxValue(1000)).addChannelOption(o=>chanOpt(o,'Counting channel (if you have several)')))
             .addSubcommand(s=>s.setName('view').setDescription('View counting channels and settings'))
             .addSubcommand(s=>s.setName('maxstreak').setDescription('Max consecutive counts per user').addIntegerOption(o=>o.setName('amount').setDescription('1\u2013100').setRequired(true).setMinValue(1).setMaxValue(100)))
@@ -828,6 +836,12 @@ client.on('interactionCreate',async interaction=>{
         const id=interaction.customId;
         if(id.startsWith('help_')){const p=parseInt(id.split('_')[1]);if(!isNaN(p)&&p>=1&&p<=5)return interaction.update(buildHelpPage(p));}
         if(id.startsWith('calc_copy_')){const parts=id.split('_');const expr=parts.slice(3).join('_');return interaction.reply({content:`\`${expr}\`\nTap and hold to copy \u2014 then paste it in the counting channel!`,...ep()});}
+        if(id==='cc_add'||id==='cc_remove'){
+            if(!await hasPerm(interaction,gid))return interaction.reply({content:'No permission.',...ep()});
+            if(id==='cc_add')return interaction.reply({embeds:[E('#5865F2','Add Counting Channel').setDescription(`Select a channel to count in (${channelsOf(gid).length}/${MAX_COUNTING_CHANNELS} used). You can pick its mode right after.`)],components:[new ActionRowBuilder().addComponents(new ChannelSelectMenuBuilder().setCustomId('setup_channel_select').setPlaceholder('Select a channel').addChannelTypes(...COUNTING_CHANNEL_TYPES).setMinValues(1).setMaxValues(1))],...ep()});
+            if(!channelsOf(gid).length)return interaction.reply(noChannels());
+            return interaction.reply({embeds:[E('#5865F2','Remove Counting Channel').setDescription('Which channel should stop counting?')],components:[pickerRow(gid,'remove')],...ep()});
+        }
         if(id.startsWith('setup_')){
             if(!interaction.guild)return;
             if(!isAdmin(interaction))return interaction.reply({content:'Admins only.',...ep()});
@@ -924,7 +938,7 @@ client.on('interactionCreate',async interaction=>{
         }
     }
     if(interaction.isChannelSelectMenu()&&interaction.customId==='setup_channel_select'){
-        if(!isAdmin(interaction))return interaction.reply({content:'Admins only.',...ep()});
+        if(!await hasPerm(interaction,gid))return interaction.reply({content:'No permission.',...ep()});
         const cid=interaction.values[0],res=await addCountingChannel(interaction.guild,cid,'interactive');
         if(res.error)return interaction.update({embeds:[E('#ff4444','Could not add channel').setDescription(res.error)],components:[]});
         return interaction.update({embeds:[E('#5865F2','Counting channel added').setDescription(`<#${cid}> is now a counting channel in **${MODE_LABEL[res.c.countType]}** mode. Pick a different mode below if you like.`)],components:[countTypeRow(res.c.countType,cid)]});
@@ -944,6 +958,7 @@ client.on('interactionCreate',async interaction=>{
     try{
         if(cmd==='help')return interaction.reply({...buildHelpPage(1),...ep()});
         if(cmd==='invite')return interaction.reply({embeds:[E('#5865F2','Invite Counting Bot').setDescription(`[**Invite me!**](https://discord.com/oauth2/authorize?client_id=${client.user.id}&permissions=${INVITE_PERMS}&scope=bot%20applications.commands)`).addFields({name:'Permissions',value:'View Channels \u00b7 Send Messages (+ in Threads) \u00b7 Add Reactions \u00b7 Read History \u00b7 Embed Links \u00b7 Manage Messages \u00b7 Manage Roles (only needed for fail roles)'})],...ep()});
+        if(cmd==='countingchannel'){if(!await hasPerm(interaction,gid))return interaction.reply({content:'No permission.',...ep()});return interaction.reply({...buildChannelsPanel(gid),...ep()});}
         if(cmd==='setup'){if(!isAdmin(interaction))return interaction.reply({content:'Admins only.',...ep()});return interaction.reply({...buildSetupEmbed(gid,await getGuild(gid)),...ep()});}
         if(cmd==='calculate'){
             await interaction.deferReply(ep());
@@ -970,7 +985,7 @@ client.on('interactionCreate',async interaction=>{
             if(sub==='view'){
                 await interaction.deferReply(ep());const g=await getGuild(gid),chans=channelsOf(gid);
                 return interaction.editReply({embeds:[E('#5865F2','Counting Status').addFields(
-                    {name:`Counting channels (${chans.length}/${MAX_COUNTING_CHANNELS})`,value:chans.length?chans.map(c=>`${channelLine(c)}${c.lastUserId?` \u00b7 last <@${c.lastUserId}>`:''}`).join('\n').slice(0,1020):'None set up yet \u2014 use `/config channel`'},
+                    {name:`Counting channels (${chans.length}/${MAX_COUNTING_CHANNELS})`,value:chans.length?chans.map(c=>`${channelLine(c)}${c.lastUserId?` \u00b7 last <@${c.lastUserId}>`:''}`).join('\n').slice(0,1020):'None set up yet \u2014 use `/countingchannel`'},
                     {name:'Streak',value:`**${g.maxStreak}** in a row`,inline:true},{name:'Expr',value:g.allowExpressions?'Allowed':'Disabled',inline:true},{name:'Saves',value:`**${g.saves??0}**`,inline:true},
                     {name:'Access',value:g.accessRoleId?`<@&${g.accessRoleId}>`:'Admins only',inline:true},{name:'Fail role',value:g.failRoleId?`<@&${g.failRoleId}> (${g.failRoleMinutes??10} min)`:'Off',inline:true},{name:'Anti-cheat',value:g.antiCheat?'On':'Off',inline:true},
                 )]});
@@ -1004,19 +1019,6 @@ client.on('interactionCreate',async interaction=>{
                 return interaction.reply({embeds:[E('#5865F2',`Count Type \u2014 <#${c.channelId}>`).setDescription('Choose a counting mode. Changing it resets this channel\'s count.').addFields({name:'\u{1F3AE} Interactive',value:'Wrong numbers reset the count. Streaks, saves, and reactions apply.',inline:true},{name:'\u{1F7E2} Simple',value:'Wrong messages are silently deleted. Count never resets.',inline:true},{name:'\u23f3 Countdown',value:'Count DOWN from 100 to 1. Complete cycles for glory!',inline:true},{name:'\u{1F3B2} Modifiers',value:'Interactive with a modifier (primes, Fibonacci, etc.). The bot only names the category, never the next number!',inline:true},{name:'\u{1F3E2} Floors',value:`Interactive with a checkpoint every ${FLOOR_SIZE}. Ruin the count and you drop back to your highest checkpoint.`,inline:true},{name:'Current mode',value:`**${MODE_EMOJI[c.countType]} ${MODE_LABEL[c.countType]}**`})],components:[countTypeRow(c.countType,c.channelId)],...ep()});
             }
             await interaction.deferReply(ep());const g=await getGuild(gid);
-            if(sub==='channel'){
-                const ch=options.getChannel('channel');
-                if(!COUNTING_CHANNEL_TYPES.includes(ch.type))return interaction.editReply({content:'Pick a text, announcement or forum channel.'});
-                const res=await addCountingChannel(interaction.guild,ch.id,options.getString('mode'));
-                if(res.error)return interaction.editReply({content:res.error});
-                const forum=ch.type===ChannelType.GuildForum;
-                return interaction.editReply({embeds:[E('#5865F2','Counting channel added').setDescription(`${ch} is now a counting channel in **${MODE_LABEL[res.c.countType]}** mode (${channelsOf(gid).length}/${MAX_COUNTING_CHANNELS}).\n${modeIntro(res.c)}${forum?'\n\nAll posts in this forum share one count.':'\n\nThreads in this channel share its count.'}`)]});
-            }
-            if(sub==='removechannel'){
-                const ch=options.getChannel('channel');
-                if(!await removeCountingChannel(gid,ch.id))return interaction.editReply({content:`${ch} isn't a counting channel.`});
-                return interaction.editReply({embeds:[E('#5865F2','Counting channel removed').setDescription(`${ch} is no longer a counting channel.`)]});
-            }
             if(sub==='setcount'){
                 const{c,error}=resolveCounting(interaction,options.getChannel('channel'));
                 if(error)return interaction.editReply({content:error});
