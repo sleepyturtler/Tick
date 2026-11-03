@@ -4,15 +4,14 @@ The best counting bot out there, featuring multiple modes, multiple counting cha
 # Commands
 
 ## Config
-- **/config channel:** Adds a counting channel (text, announcement or forum), optionally with a mode. Servers can have several (default max 10), each with its own mode and count. Threads share the count of their parent channel.
-- **/config removechannel:** Stops counting in a channel.
-- **/config counttype:** Switch a channel between the interactive, simple, countdown, modifiers and floors mode.
-- **/config failrole:** Gives players who ruin the count a temporary role (leave `role` empty to create "Ruined the Count"). Needs Manage Roles.
-- **/config anticheat:** Calls out edited or deleted counts.
-- **/config maxstreak:** Sets the maximum consecutive counts per user.
+- **/counting channel:** Adds a counting channel (text, announcement or forum), optionally with a mode. Servers can have several (default max 10), each with its own mode and count. Threads share the count of their parent channel.
+- **/counting mode:** Switch a channel between the interactive, simple, countdown, modifiers and floors mode.
+- **/counting failrole:** Gives players who ruin the count a temporary role (leave `role` empty to create "Ruined the Count"). Needs Manage Roles.
+- **/counting anticheat:** Calls out edited or deleted counts.
+- **/counting maxstreak:** Sets the maximum consecutive counts per user.
 - **/config access:** Sets which role can use the config commands.
-- **/config setcount:** Sets the count to any number below 1000 to make it easy to transfer from another bot.
-- **/config expressions:** Allows or disallows the use of expressions.
+- **/counting setcount:** Sets the count to any number below 1000 to make it easy to transfer from another bot.
+- **/counting expressions:** Allows or disallows the use of expressions.
 - **/setup:** All in one panel for setting up the bot.
 
 # Modes
@@ -21,10 +20,7 @@ The best counting bot out there, featuring multiple modes, multiple counting cha
 - **Countdown:** Count down from 100 to 1, then it starts over.
 - **Modifiers:** A modifier (primes, Fibonacci, every 3rd number...) decides the valid numbers. The bot only names the category, never the next number.
 - **Floors:** Every 100 is a checkpoint. Ruin the count and you drop back to your highest checkpoint instead of 0.
-
-# Environment
-`DATABASE_URL`, `DISCORD_TOKEN`; optional: `DB_STATEMENT_TIMEOUT_MS` (8000), `DB_CONNECTION_TIMEOUT_MS` (5000), `DB_IDLE_TIMEOUT_MS`, `DB_POOL_MAX` (3), `MAX_COUNTING_CHANNELS` (10).
-
+  
 ## Stats
 - **/stats:** Shows your or another user's stats.
 - **/leaderboard server:** Shows the top counters in the server.
