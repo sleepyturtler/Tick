@@ -5,6 +5,7 @@ const client = require('./client');
 const { pool, initDB } = require('./db');
 const { guildCache, chanCache, flags, normGuild, normChan, indexChan, removeCountingChannel } = require('./state');
 const { restoreFailRoles } = require('./failroles');
+const { loadMissingRatings } = require('./fcload');
 const { announceSupportServer } = require('./support');
 const { buildCommands } = require('./commands');
 const messages = require('./handlers/messages');
@@ -24,6 +25,8 @@ client.once('ready',async()=>{
         flags.fullyLoaded=true;
         console.log(`Loaded ${cr.rows.length} counting channel(s) across ${gr.rows.length} guild(s)`);
         await restoreFailRoles();
+        // Background: loads any ratings game from sql/ that the database doesn't have yet. Lookups for it find nothing until it finishes.
+        loadMissingRatings().then(n=>{if(n)console.log(`Ratings import done (${n} game(s))`);}).catch(e=>console.error('ratings import:',e.message));
     }catch(e){console.error('DB init failed:',e.message);}
     keepAlive();
     for(const guild of client.guilds.cache.values()){await announceSupportServer(guild).catch(()=>{});}
