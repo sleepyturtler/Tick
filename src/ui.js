@@ -151,7 +151,7 @@ function buildHelpPage(page){
             {name:'Saves',value:'Earned at 50, 100, 250, 500, 1000, 2000, then every 2000. Anyone can use one within 1 minute to undo a ruin!'},
             {name:'Simple mode',value:'No resets \u2014 wrong messages are silently deleted.'},
             {name:'Multiple channels',value:'A server can have several counting channels, each with its own mode and count. Threads share the count of the channel they live in.'},
-            {name:'\u26bd Player counting',value:'Type a football player\'s name and their EA FC overall rating is your number! Add a game like `lamine yamal:fc25`, or leave it off for the latest game. An admin turns this on with `/counting players`.'},
+            {name:'\u26bd Player counting',value:'Type a football player\'s name and their EA FC overall rating is your number! Add a game like `lamine yamal:fc25` (or `:fifa19`, from FIFA 15 to FC 27), or leave it off for the latest game. An admin turns this on with `/counting players`.'},
         ).setFooter({text:'Page 1/5'}),
         E('#5865F2','Commands').setDescription('All commands:').addFields(
             {name:'Counting',value:'`/counting reset`'},
