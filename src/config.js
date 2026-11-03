@@ -29,9 +29,11 @@ const INVITE_PERMS = new PermissionsBitField([
 // Newest game whose ratings are loaded in the fc_players table; a bare player name uses this game.
 // Hardcoded on purpose: bump this one number after importing a new FC game. Env var LATEST_FC overrides it.
 const LATEST_FC = envInt('LATEST_FC', 27);
+// Load any ratings game from the sql/ folder that is missing from the database when the bot starts. FC_AUTOLOAD=0 turns it off.
+const FC_AUTOLOAD = process.env.FC_AUTOLOAD !== '0';
 
 module.exports = {
     envInt, PS, SLB_MAX, COUNTDOWN_START, FLOOR_SIZE, MAX_COUNTING_CHANNELS, MAX_SAVES, MODES, safeMode, usesSaves,
     LEGACY_GUILD_KEYS, MODE_EMOJI, MODE_LABEL, MODE_CHOICES, COUNTING_CHANNEL_TYPES, NE, SUPPORT_URL, INVITE_PERMS,
-    LATEST_FC,
+    LATEST_FC, FC_AUTOLOAD,
 };
