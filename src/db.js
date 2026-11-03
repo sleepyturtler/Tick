@@ -1,5 +1,6 @@
 const { Pool } = require('pg');
 const { envInt, PS, SLB_MAX, COUNTDOWN_START, LEGACY_GUILD_KEYS, safeMode } = require('./config');
+const { FC_SCHEMA_SQL } = require('./fcdata');
 
 // DB limits are configurable so slow/spiky databases can be tuned without a code change.
 const pool = new Pool({
@@ -24,6 +25,7 @@ async function initDB() {
         CREATE TABLE IF NOT EXISTS support_announced (guild_id TEXT PRIMARY KEY, announced_at TIMESTAMPTZ DEFAULT NOW());
         CREATE TABLE IF NOT EXISTS fail_roles (guild_id TEXT NOT NULL, user_id TEXT NOT NULL, role_id TEXT NOT NULL, expires_at TIMESTAMPTZ NOT NULL, PRIMARY KEY (guild_id, user_id));
     `);
+    await pool.query(FC_SCHEMA_SQL);
     await migrateLegacyChannels();
     cleanupDedup();
     setInterval(cleanupDedup, 10 * 60 * 1000).unref();
