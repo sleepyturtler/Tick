@@ -1,18 +1,17 @@
-// Football player counting: turns "lamine yamal:fc25" (or just "lamine yamal") into that player's EA FC overall rating.
-const { LATEST_FC, FC_API_BASE, FC_RATE_PER_MIN } = require('./config');
+// Football player counting: turns "lamine yamal:fc25" (or just "lamine yamal") into that player's launch rating
+// for that game, read from the fc_players table (loaded from SQL files, see scripts/make-ratings-sql.js).
+const { LATEST_FC } = require('./config');
+const { pool } = require('./db');
+const { norm } = require('./fcdata');
 
-const HIT_TTL = 24 * 60 * 60 * 1000;   // a player's launch rating never changes
-const MISS_TTL = 10 * 60 * 1000;       // retry unknown names after a while (typos, API gaps)
-const CACHE_MAX = 2000, TIMEOUT_MS = 4000;
+const HIT_TTL = 24 * 60 * 60 * 1000;   // ratings in the table never change
+const MISS_TTL = 10 * 60 * 1000;       // unknown names are re-checked after a while (typos, newly imported games)
+const CACHE_MAX = 2000, ROW_LIMIT = 2000;
 const cache = new Map();               // key -> { val, ttl, at }   (val is null for a cached miss)
-const inflight = new Map();            // key -> Promise, so identical lookups share one request
-let callTimes = [];
+const inflight = new Map();            // key -> Promise, so identical lookups share one query
 
-// lowercase, strip accents, turn punctuation into spaces: "N'Golo Kanté" -> "n golo kante"
-const norm = s => String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[.'\u2019\-]/g, ' ').replace(/\s+/g, ' ').trim();
-
-// Accepts "name" or "name:fc25" (spaces around the colon are fine). Anything else (digits, symbols, long text) is not a player attempt.
-const RE = /^([\p{L}][\p{L}\p{M}\s.'\u2019\-]{1,39}?)(?:\s*:\s*fc\s*(\d{2}))?$/iu;
+// Accepts "name" or "name:fc25" / "name:fifa23" (spaces around the colon are fine). Anything else (digits, symbols, long text) is not a player attempt.
+const RE = /^([\p{L}][\p{L}\p{M}\s.'\u2019\-]{1,39}?)(?:\s*:\s*(?:fc|fifa)\s*(\d{2}))?$/iu;
 function parseQuery(raw) {
     if (!raw || raw.length > 60) return null;
     const m = RE.exec(raw);
@@ -23,51 +22,47 @@ function parseQuery(raw) {
     return { name, game: explicit ? parseInt(m[2], 10) : LATEST_FC, explicit };
 }
 
-function allow() {
-    const now = Date.now();
-    callTimes = callTimes.filter(t => now - t < 60_000);
-    if (callTimes.length >= FC_RATE_PER_MIN) return false;
-    callTimes.push(now);
-    return true;
-}
 function remember(key, val, ttl) {
     cache.delete(key);
     cache.set(key, { val, ttl, at: Date.now() });
     while (cache.size > CACHE_MAX) cache.delete(cache.keys().next().value);
 }
 
-function extractRows(json) {
-    if (Array.isArray(json)) return json;
-    if (json && typeof json === 'object') {
-        for (const k of ['players', 'data', 'results']) if (Array.isArray(json[k])) return json[k];
-        if (json.name || json.Name) return [json];
-    }
-    return [];
-}
-// Prefer an exact name, then rows containing every typed word as a whole word. Highest overall wins ("silva" -> best Silva).
+// Matching order, first non-empty step wins, and within a step the highest overall wins:
+//   1. exact full-name match (only when two or more words are typed)
+//   2. every typed word appears as a whole word in the display name ("silva" -> the best Silva)
+//   3. every typed word appears as a whole word in the long legal name ("kylian mbappe" -> "Kylian Mbappe Lottin")
+// Step 3 comes last because legal names hold extra words (Neymar's contains "da Silva").
+// One word never counts as "exact", otherwise a player literally named "Silva" would beat Bernardo Silva.
+// rows: [{ name, norm_name, norm_alt, overall }]
 function pick(rows, q) {
-    const want = norm(q.name), toks = want.split(' ');
-    const list = rows.map(r => ({ name: String(r.name ?? r.Name ?? ''), ovr: parseInt(r.ovr ?? r.OVR, 10) }))
-        .map(r => ({ ...r, n: norm(r.name) }))
-        .filter(r => r.n && Number.isFinite(r.ovr) && r.ovr > 0);
-    const exact = list.filter(r => r.n === want);
-    const words = list.filter(r => { const w = r.n.split(' '); return toks.every(t => w.includes(t)); });
-    const tier = exact.length ? exact : words;
-    if (!tier.length) return null;
-    const best = tier.reduce((a, b) => (b.ovr > a.ovr ? b : a));
-    return { name: best.name, ovr: best.ovr, game: q.game };
+    const want = norm(q.name);
+    if (!want) return null;
+    const toks = want.split(' ');
+    const hasAll = n => { if (!n) return false; const w = n.split(' '); return toks.every(t => w.includes(t)); };
+    const list = rows.filter(r => Number.isFinite(r.overall) && r.overall > 0);
+    const steps = [
+        toks.length > 1 ? list.filter(r => r.norm_name === want || r.norm_alt === want) : [],
+        list.filter(r => hasAll(r.norm_name)),
+        list.filter(r => hasAll(r.norm_alt)),
+    ];
+    const tier = steps.find(t => t.length);
+    if (!tier) return null;
+    const best = tier.reduce((a, b) => (b.overall > a.overall ? b : a));
+    return { name: best.name, ovr: best.overall, game: q.game };
 }
 
-async function fetchPlayer(q, key) {
-    if (!allow()) return null;   // over the rate limit: treat as "unknown" without caching it
-    const url = `${FC_API_BASE}/players?name=${encodeURIComponent(norm(q.name))}&game=fc${q.game}`;
+async function query(q, key) {
+    const want = norm(q.name);
+    if (!want) return null;
+    const longest = want.split(' ').reduce((a, b) => (b.length > a.length ? b : a));
     let rows;
     try {
-        const res = await fetch(url, { signal: AbortSignal.timeout(TIMEOUT_MS), headers: { accept: 'application/json' } });
-        if (res.status === 404) { remember(key, null, MISS_TTL); return null; }
-        if (!res.ok) return null;   // API trouble: don't cache, try again next time
-        rows = extractRows(await res.json());
-    } catch (e) { console.error('fc lookup:', e.message); return null; }
+        const res = await pool.query(
+            'SELECT name, norm_name, norm_alt, overall FROM fc_players WHERE game=$1 AND (norm_name LIKE $2 OR norm_alt LIKE $2) ORDER BY overall DESC LIMIT $3',
+            [q.game, `%${longest}%`, ROW_LIMIT]);
+        rows = res.rows;
+    } catch (e) { console.error('fc lookup:', e.message); return null; }   // database trouble: don't cache, try again next time
     const val = pick(rows, q);
     remember(key, val, val ? HIT_TTL : MISS_TTL);
     return val;
@@ -79,7 +74,7 @@ async function lookup(q) {
     const hit = cache.get(key);
     if (hit && Date.now() - hit.at < hit.ttl) { cache.delete(key); cache.set(key, hit); return hit.val; }
     if (inflight.has(key)) return inflight.get(key);
-    const p = fetchPlayer(q, key).finally(() => inflight.delete(key));
+    const p = query(q, key).finally(() => inflight.delete(key));
     inflight.set(key, p);
     return p;
 }
