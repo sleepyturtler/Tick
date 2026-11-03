@@ -26,15 +26,12 @@ const INVITE_PERMS = new PermissionsBitField([
 ]).bitfield.toString();
 
 // ---------- football player counting (EA FC ratings) ----------
-// Hardcoded on purpose: bump this one number when a new FC game comes out. Env var LATEST_FC overrides it.
+// Newest game whose ratings are loaded in the fc_players table; a bare player name uses this game.
+// Hardcoded on purpose: bump this one number after importing a new FC game. Env var LATEST_FC overrides it.
 const LATEST_FC = envInt('LATEST_FC', 27);
-// Community EA FC ratings API. Override the base URL with FC_API_BASE if it ever moves.
-const FC_API_BASE = (process.env.FC_API_BASE || 'https://api.msmc.cc/api/eafc').replace(/\/+$/, '');
-// Max outgoing lookups per minute (cached answers don't count). Protects the API and the free-tier box.
-const FC_RATE_PER_MIN = envInt('FC_RATE_PER_MIN', 30);
 
 module.exports = {
     envInt, PS, SLB_MAX, COUNTDOWN_START, FLOOR_SIZE, MAX_COUNTING_CHANNELS, MAX_SAVES, MODES, safeMode, usesSaves,
     LEGACY_GUILD_KEYS, MODE_EMOJI, MODE_LABEL, MODE_CHOICES, COUNTING_CHANNEL_TYPES, NE, SUPPORT_URL, INVITE_PERMS,
-    LATEST_FC, FC_API_BASE, FC_RATE_PER_MIN,
+    LATEST_FC,
 };
