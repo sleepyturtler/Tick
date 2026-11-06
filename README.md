@@ -1,0 +1,40 @@
+# Description
+The best counting bot out there, featuring multiple modes, multiple counting channels per server, endless customization and multiplayer party games.
+
+# Commands
+
+## Config
+- **/counting channel:** Adds a counting channel (text, announcement or forum), optionally with a mode. Servers can have several (default max 10), each with its own mode and count. Threads share the count of their parent channel.
+- **/counting removechannel:** Stops counting in a channel.
+- **/counting counttype:** Switch a channel between the interactive, simple, countdown, modifiers and floors mode.
+- **/counting failrole:** Gives players who ruin the count a temporary role (leave `role` empty to create "Ruined the Count"). Needs Manage Roles.
+- **/counting anticheat:** Calls out edited or deleted counts.
+- **/counting maxstreak:** Sets the maximum consecutive counts per user.
+- **/config access:** Sets which role can use the config commands.
+- **/counting setcount:** Sets the count to any number below 1000 to make it easy to transfer from another bot.
+- **/counting expressions:** Allows or disallows the use of expressions.
+- **/setup:** All in one panel for setting up the bot.
+
+# Modes
+- **Interactive:** Wrong number resets to 0. Saves, streaks, milestones.
+- **Simple:** Wrong messages are deleted, the count never resets.
+- **Countdown:** Count down from 100 to 1, then it starts over.
+- **Modifiers:** A modifier (primes, Fibonacci, every 3rd number...) decides the valid numbers. The bot only names the category, never the next number.
+- **Floors:** Every 100 is a checkpoint. Ruin the count and you drop back to your highest checkpoint instead of 0.
+
+## Stats
+- **/stats:** Shows your or another user's stats.
+- **/leaderboard server:** Shows the top counters in the server.
+- **/leaderboard global:** Shows the current top servers and top counters.
+- **/leaderboard highscores:** Shows the top highscores.
+
+## Other
+- **/calculate:** Enter a number to get 3 ways to calculate it or enter an expression to evaluate it.
+- **/invite:** Generates an invite link with all the needed permissions.
+- **/help:** Lists all the commands and provides other useful info.
+
+# AI Use:
+- The bot is mostly vibecoded with Claude, however
+- A lot of effort, manual bugtesting and time has went into making this bot super polished.
+- The bot is something I am passionate about, and me using AI does not change the fact that I worked very hard to make it.
+- If you're not a fan of AI code, you are free to not use this bot and my other bots.
