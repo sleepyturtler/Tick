@@ -1,5 +1,7 @@
 <img width="2250" height="950" alt="Untitled" src="https://github.com/user-attachments/assets/825bc236-782d-49ed-b421-2095bda5ddef" />
-<a href="https://github.com/YOUR_USERNAME"><img src="https://img.shields.io/badge/%2B%20Add%20me-2ea44f" alt="Add me"></a>
+<a href="https://github.com/YOUR_USERNAME">
+  <img src="https://img.shields.io/badge/ADD%20ME-2ea44f?style=for-the-badge" alt="Add me">
+</a>
 
 # Description
 The best counting bot out there, featuring multiple modes, multiple counting channels per server, endless customization and multiplayer party games.
