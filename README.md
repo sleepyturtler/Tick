@@ -1,3 +1,5 @@
+<img width="450" height="190" alt="Untitled" src="https://github.com/user-attachments/assets/12276663-0e53-4ce6-89f0-67c55f0b9c1f" />
+
 # Description
 The best counting bot out there, featuring multiple modes, multiple counting channels per server, endless customization and multiplayer party games.
 
