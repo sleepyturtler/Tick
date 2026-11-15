@@ -3,7 +3,7 @@
   <img src="https://img.shields.io/badge/ADD%20ME-2ea44f?style=for-the-badge" alt="Add me">
 </a>
 <a href="https://github.com/YOUR_USERNAME">
-  <img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fhttps://tick-beta.onrender.com%2Fstats&amp;query=%24.servers&amp;label=IN&amp;suffix=%20servers&amp;color=22c55e&amp;style=for-the-badge&amp;cacheSeconds=3600" alt="Server count">
+  <img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Ftick-beta.onrender.com%2Fstats&amp;query=%24.servers&amp;label=IN&amp;suffix=%20servers&amp;color=22c55e&amp;style=for-the-badge&amp;cacheSeconds=3600&amp;v=2" alt="Server count">
 </a>
 
 # Description
