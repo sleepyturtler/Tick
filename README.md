@@ -4,8 +4,6 @@
 </a>
 <a href="https://github.com/YOUR_USERNAME">
   <img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Ftick-beta.onrender.com%2Fstats&amp;query=%24.servers&amp;label=IN&amp;suffix=%20servers&amp;color=22c55e&amp;style=for-the-badge&amp;cacheSeconds=3600&amp;v=2" alt="Server count">
-</a>
-<img width="2250" height="950" alt="Untitled" src="https://github.com/user-attachments/assets/825bc236-782d-49ed-b421-2095bda5ddef" />
 <a href="https://github.com/YOUR_USERNAME">
   <img src="https://img.shields.io/badge/ADD%20ME-2ea44f?style=for-the-badge" alt="Top.gg">
 </a>
