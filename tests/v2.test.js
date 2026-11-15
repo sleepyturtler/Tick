@@ -10,7 +10,9 @@ const { handleCount, register } = require('../src/handlers/messages');
 
 const GREEN = 0x22CE60, STATS = 0x24E066, ENEMY = 0xA71E10, FLEET = 0x3498DB;
 const types = c => c.components.map(n => n.type);
+const allIds = p => { const ids = []; const walk = n => { if (!n) return; if (typeof n.toJSON === 'function') n = n.toJSON(); if (n.custom_id) ids.push(n.custom_id); (n.components ?? []).forEach(walk); if (n.accessory) walk(n.accessory); }; (p.components ?? []).forEach(walk); return ids; };
 const withinLimits = (p, label = '') => {
+    const ids = allIds(p); assert.equal(new Set(ids).size, ids.length, `${label} has a duplicate custom_id: ${ids.filter((x, i) => ids.indexOf(x) !== i)}`);
     const all = { components: p.components };
     assert.ok(v2.count(all) <= 40, `${label} has ${v2.count(all)} components`);
     assert.ok(v2.textLength(all) <= 4000, `${label} has ${v2.textLength(all)} characters`);
@@ -46,7 +48,7 @@ test('every settings and help screen fits the limits', async () => {
     state.chanCache.clear(); for (const id of ['c1', 'c2', 'c3']) { const c = state.defaultChannel('g1', id, 'interactive'); state.chanCache.set(id, c); }
     withinLimits(v2.convert(ui.buildSetupEmbed('g1', g)), 'setup');
     withinLimits(v2.convert(ui.buildChannelsPanel('g1')), 'channels panel');
-    for (let page = 1; page <= 5; page++) withinLimits(v2.convert(ui.buildHelpPage(page)), `help ${page}`);
+    for (let page = 1; page <= 6; page++) withinLimits(v2.convert(ui.buildHelpPage(page)), `help ${page}`);
 });
 
 // ---------- 1. user stats ----------
@@ -228,3 +230,78 @@ test('Guess Who fits the limits in both phases, with 30 characters left each', a
     const done = v2.convert(await games.MODULES.guesswho.payload({ ...g('over') }, 'Alice wins'));
     assert.match(textOf(done), /Alice wins/);
 });
+
+
+// ---------- leaderboard Modes tab, end to end ----------
+const { register: registerInteractions } = require('../src/handlers/interactions');
+let wired = false;
+async function press(customId, extra = {}) {
+    if (!wired) { registerInteractions(); wired = true; }
+    db().reset();
+    const i = fakeInteraction({ userId: 'u1', customId });
+    Object.assign(i, { guildId: 'g1', isButton: () => true, isMessageComponent: () => true, isChatInputCommand: () => false, isStringSelectMenu: () => false, isRoleSelectMenu: () => false, isChannelSelectMenu: () => false, isModalSubmit: () => false, isAutocomplete: () => false, edits: [],
+        message: { id: 'm', embeds: [], flags: { bitfield: 32768 } }, ...extra });
+    // the real entry point wraps the interaction, so the collector goes in underneath it and sees what Discord would receive
+    const edits = []; i.editReply = async p => { edits.push(p); }; i.deferUpdate = async () => {}; i.__v2 = false;
+    client.emit('interactionCreate', i); await tick(40);
+    return { i, edits };
+}
+const rowsOf = p => p.components.filter(n => n.type === 1).map(r => r.components);
+test('Modes tab: pressing it shows the five modes under the tabs, with Modes and Interactive highlighted', async () => {
+    const { edits } = await press('lbt_modes_interactive');
+    assert.equal(edits.length, 1, 'the message was edited'); const p = edits[0]; withinLimits(p, 'modes tab');
+    const rows = rowsOf(p); assert.equal(rows.length, 3, 'tabs, modes, pager');
+    assert.deepEqual(rows[0].map(b => [b.label, b.style]), [['Users', 2], ['Modes', 1]]);
+    assert.deepEqual(rows[1].map(b => b.label.replace(/^\S+ /, '')), ['Interactive', 'Simple', 'Countdown', 'Modifiers', 'Floors']);
+    assert.deepEqual(rows[1].map(b => b.style), [1, 2, 2, 2, 2]);
+    assert.deepEqual(rows[2].map(b => b.label).slice(0, 2), ['\u25c0', '1/1']);
+});
+test('Modes tab: choosing another mode keeps the tabs and highlights that mode; the Modes tab keeps the mode open', async () => {
+    const simple = (await press('lbt_gs_simple')).edits[0]; withinLimits(simple, 'simple');
+    assert.deepEqual(rowsOf(simple)[1].map(b => b.style), [2, 1, 2, 2, 2]); assert.equal(rowsOf(simple)[0][1].style, 1);
+    assert.equal(rowsOf(simple)[0][1].custom_id, 'lbt_modes_simple');
+    const stay = (await press('lbt_modes_countdown')).edits[0]; assert.deepEqual(rowsOf(stay)[1].map(b => b.style), [2, 2, 1, 2, 2]);
+});
+test('Modes tab: Users brings back the single tab row', async () => {
+    const p = (await press('lbt_gu')).edits[0]; withinLimits(p, 'users tab'); assert.equal(rowsOf(p).length, 2);
+    assert.deepEqual(rowsOf(p)[0].map(b => [b.label, b.style]), [['Users', 1], ['Modes', 2]]);
+});
+test('no two buttons in any leaderboard, highscore or stats screen share an id', async () => {
+    for (const id of ['lbt_gu', 'lbt_modes_interactive', 'lbt_gs_floors', 'hst_simple', 'lb_gs_finteractive_p1']) { const { edits } = await press(id); if (edits[0]) withinLimits(edits[0], id); }
+});
+
+// ---------- /help: the Links page ----------
+test('/help has a Links page: each link is a line of text with a link button beside it', () => {
+    const p = v2.convert(ui.buildHelpPage(6)), c = p.components[0];
+    assert.equal(c.components[0].content, '### Links');
+    const sections = c.components.filter(n => n.type === 9);
+    const by = Object.fromEntries(sections.map(s => [s.components[0].content, s.accessory]));
+    const gh = by['**GitHub:** source code'];
+    assert.deepEqual(gh, { type: 2, style: 5, label: 'Open', url: 'https://github.com/sleepyturtler/Tick' });
+    assert.equal(by['**top.gg:** vote and review'].url, 'https://top.gg/bot/1507450543419822242');
+    assert.equal(by['**Support server:** help, bugs and updates'].url, 'https://discord.gg/Qrp82cRhUW');
+    assert.match(by['**Add Tick:** invite the bot to a server'].url, /^https:\/\/discord\.com\/oauth2\/authorize\?client_id=\w+&permissions=\d+&scope=bot%20applications\.commands$/);
+    for (const s of sections) assert.ok(s.accessory.type === 2 && s.accessory.style === 5 && !s.accessory.custom_id, 'link buttons carry a url, not an id');
+    withinLimits(p, 'links page');
+});
+test('/help tabs: six pages across two rows, each id once, the open page highlighted', () => {
+    for (let page = 1; page <= 6; page++) {
+        const rows = v2.convert(ui.buildHelpPage(page)).components.filter(n => n.type === 1).map(r => r.components);
+        assert.equal(rows.length, 2); assert.ok(rows.every(r => r.length <= 5));
+        assert.deepEqual(rows.flat().map(b => b.custom_id), ['help_1', 'help_2', 'help_3', 'help_4', 'help_5', 'help_6']);
+        assert.deepEqual(rows.flat().map(b => b.style === 1), [1, 2, 3, 4, 5, 6].map(n => n === page));
+    }
+});
+test('/help Links: the website, terms and privacy buttons appear when the site address is known', () => {
+    const { execFileSync } = require('child_process');
+    const out = execFileSync(process.execPath, ['-r', require.resolve('./lib'), '-e', "const v2=require('./src/v2');const p=v2.convert(require('./src/ui').buildHelpPage(6));console.log(JSON.stringify(p.components[0].components.filter(n=>n.type===9).map(s=>s.accessory.url)))"],
+        { cwd: require('path').join(__dirname, '..'), env: { ...process.env, PUBLIC_URL: 'https://tick.example/' } }).toString();
+    const urls = JSON.parse(out.trim().split('\n').pop());
+    assert.ok(urls.includes('https://tick.example') && urls.includes('https://tick.example/terms') && urls.includes('https://tick.example/privacy'));
+    assert.equal(urls.length, 7);
+});
+test('pressing a Links tab button shows the page', async () => {
+    const { i } = await press('help_6', {});
+    const sent = i.updated[0]; assert.ok(sent && isV2(sent)); assert.match(textOf(sent), /GitHub/);
+});
+
