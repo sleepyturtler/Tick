@@ -62,7 +62,11 @@ const EMOJI_START = /^([\p{Extended_Pictographic}\uFE0F\u200d\s]+)/u;
 const cleanTitle = t => String(t ?? '').replace(EMOJI_START, '').replace(/\s\u2014\s/g, ' - ').trim();
 const unbold = v => { const m = /^\*\*([^*]+)\*\*$/.exec(v); return m ? m[1] : v; };
 
-// blocks: array of strings, each its own text display with a divider in between.
+// A block is a string (a text display) or { text, link: { label, url } }: the text with a link button beside it (a section with a button accessory).
+const blockNode = b => (typeof b === 'string' ? text(b)
+    : { type: 9, components: [text(b.text)], accessory: { type: 2, style: 5, label: String(b.link.label).slice(0, 80), url: b.link.url } });
+
+// blocks: array of blocks, each with a divider in between.
 // -> a container node. footer becomes "-# footer" under its own divider. image goes in a gallery under the text.
 function build({ accent = COLORS.DEFAULT, title, thumb, blocks = [], image, footer, budget = MAX_COMPONENTS } = {}) {
     const header = title ? (thumb ? section(`### ${title}`, thumb) : text(`### ${title}`)) : null;
@@ -70,14 +74,14 @@ function build({ accent = COLORS.DEFAULT, title, thumb, blocks = [], image, foot
         const out = [];
         const push = (node, gap = true) => { if (out.length && gap) out.push(sep()); out.push(node); };
         if (header) push(header, false);
-        blocks.forEach((b, i) => push(text(b), i === 0 ? !!header : gaps));   // the first block always sits under the title's divider, the others only while there is room
+        blocks.forEach((b, i) => push(blockNode(b), i === 0 ? !!header : gaps));   // the first block always sits under the title's divider, the others only while there is room
         if (image) out.push(...(Array.isArray(image) ? image : [image]).map(u => gallery(u)));
         if (footer) push(text(`-# ${footer}`));
         return out;
     };
     let children = make(true);
     if (1 + children.reduce((n, c) => n + count(c), 0) > budget) children = make(false);
-    if (1 + children.reduce((n, c) => n + count(c), 0) > budget && blocks.length > 2) {
+    if (1 + children.reduce((n, c) => n + count(c), 0) > budget && blocks.length > 2 && blocks.every(b => typeof b === 'string')) {
         // still too big: the blocks after the first become one text
         const merged = { accent, title, thumb, blocks: [blocks[0], blocks.slice(1).join('\n')], image, footer, budget };
         return build(merged);
