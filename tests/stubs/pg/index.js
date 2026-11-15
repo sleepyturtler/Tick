@@ -29,6 +29,7 @@ function query(text, params = []) {
     if ((m = /^DELETE FROM (counting|counting_channels|user_stats|fail_roles|support_announced) WHERE guild_id=\$1/.exec(t))) { const before = db.rows[m[1]].length; db.rows[m[1]] = db.rows[m[1]].filter(r => r.guild_id !== params[0]); return { rows: [], rowCount: before - db.rows[m[1]].length }; }
     if (/^SELECT to_regclass\('games'\) AS t/.test(t)) return { rows: [{ t: 'games' }] };
     if (/^DELETE FROM games WHERE guild_id=\$1/.test(t)) { let n = 0; for (const [k, g] of [...db.games]) if (g.data.guildId === params[0]) { db.games.delete(k); n++; } return { rows: [], rowCount: n }; }
+    if (/^SELECT COUNT\(\*\) AS cnt FROM/.test(t)) return { rows: [{ cnt: '0' }] };   // list pages: nothing stored
     if (/^INSERT INTO dedup/.test(t)) { db.dedup ??= new Set(); if (db.dedup.has(params[0])) return { rows: [], rowCount: 0 }; db.dedup.add(params[0]); return { rows: [{ message_id: params[0] }], rowCount: 1 }; }
     if (/^DELETE FROM game_pairs/.test(t)) return { rows: [], rowCount: 0 };
     if (/^INSERT INTO game_elo/.test(t)) { const k = `${params[0]}|${params[1]}`; if (!db.elo.has(k)) db.elo.set(k, { user_id: params[0], game: params[1], rating: params[2], games: 0, wins: 0, losses: 0, draws: 0 }); return { rows: [], rowCount: 1 }; }
