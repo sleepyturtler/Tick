@@ -29,7 +29,7 @@ async function onInteraction(interaction){
     if(interaction.isButton()){
         const id=interaction.customId;
         if(id.startsWith('players_reroll_'))return players.handleReroll(interaction);
-        if(id.startsWith('help_')){const p=parseInt(id.split('_')[1]);if(!isNaN(p)&&p>=1&&p<=5)return interaction.update(buildHelpPage(p));}
+        if(id.startsWith('help_')){const p=parseInt(id.split('_')[1]);if(!isNaN(p)&&p>=1&&p<=6)return interaction.update(buildHelpPage(p));}
         if(id.startsWith('calc_copy_')){const parts=id.split('_');const expr=parts.slice(3).join('_');return interaction.reply({content:`\`${expr}\`\nTap and hold to copy \u2014 then paste it in the counting channel!`,...ep()});}
         if(id==='cc_add'||id==='cc_remove'){
             if(!await hasPerm(interaction,gid))return interaction.reply({content:'No permission.',...ep()});
@@ -94,7 +94,7 @@ async function onInteraction(interaction){
             await interaction.deferUpdate();
             try{
                 if(id==='lbt_gu'){const{embed,totalPages}=await buildGlobalUsersEmbed(1);return interaction.editReply({embeds:[embed],components:[...globalTabRows('gu'),paginationRow('gu','',1,totalPages)]});}
-                const sf=safeMode(id.replace('lbt_gs_',''));
+                const sf=safeMode(id.startsWith('lbt_modes_')?id.slice('lbt_modes_'.length):id.replace('lbt_gs_',''));   // the Modes tab keeps the mode that is open
                 if(sf){const r=await buildGlobalServersEmbed(1,sf);return interaction.editReply(lbRows(r,`gs_${sf}`,gsPagination(sf,1,r.totalPages)));}
             }catch(e){console.error('tab btn:',e);await interaction.editReply({content:'Failed to load.'}).catch(()=>{});}
         }
