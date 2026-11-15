@@ -46,6 +46,8 @@ const ELO_K = envInt('ELO_K', 32);             // how far one result moves a rat
 // ----- website and invite -----
 const GITHUB_URL = 'https://github.com/sleepyturtler/Tick';
 const TOPGG_URL = 'https://top.gg/bot/1507450543419822242';
+// Where the website lives, when known (PUBLIC_URL, or the address Render gives the service). Used for the Terms and Privacy links in /help.
+const WEBSITE_URL = (process.env.PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || '').replace(/\/$/, '');
 const DEFAULT_CLIENT_ID = process.env.CLIENT_ID || '1507450543419822242';   // used for the invite link until the bot has connected and knows its own id
 // The invite link: bot plus slash commands, with the permissions the bot asks for. /invite and the website both use this one.
 const inviteUrl = (clientId = DEFAULT_CLIENT_ID) => `https://discord.com/oauth2/authorize?client_id=${clientId}&permissions=${INVITE_PERMS.bitfield ?? INVITE_PERMS}&scope=bot%20applications.commands`;
@@ -63,5 +65,5 @@ module.exports = {
     envInt, PS, SLB_MAX, COUNTDOWN_START, FLOOR_SIZE, MAX_COUNTING_CHANNELS, MAX_SAVES, MODES, safeMode, usesSaves,
     LEGACY_GUILD_KEYS, MODE_EMOJI, MODE_LABEL, MODE_CHOICES, COUNTING_CHANNEL_TYPES, NE, SUPPORT_URL, INVITE_PERMS,
     LATEST_FC, FC_AUTOLOAD,
-    GITHUB_URL, TOPGG_URL, DEFAULT_CLIENT_ID, inviteUrl, GUILD_PURGE_GRACE_MS, GUILD_SWEEP_INTERVAL_MS,
+    GITHUB_URL, TOPGG_URL, WEBSITE_URL, DEFAULT_CLIENT_ID, inviteUrl, GUILD_PURGE_GRACE_MS, GUILD_SWEEP_INTERVAL_MS,
 };
