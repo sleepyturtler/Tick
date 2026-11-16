@@ -3,6 +3,7 @@
 const { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, PermissionFlagsBits } = require('discord.js');
 const { GAME_TTL_MIN, INVITE_TTL_MIN, BUMP_AFTER_MESSAGES, BUMP_MIN_SECONDS } = require('../config');
 const client = require('../client');
+const { cmd } = require('../mentions');
 const { chanCache, countingIdFor } = require('../state');
 const { E } = require('../ui');
 const store = require('./store');
@@ -141,10 +142,10 @@ async function handleInteraction(interaction) {
             return true;
         }
         const game = store.get(gid);
-        if (!game) { await reject(interaction, 'This game is over or has expired. Start a new one with `/game`.'); return true; }
+        if (!game) { await reject(interaction, `This game is over or has expired. Start a new one with ${cmd('game')}.`); return true; }
         const mod = MODULES[game.type];
         // The game may have ended (expired, been stopped) while this press was waiting its turn for the game's lock.
-        const gone = () => reject(interaction, 'This game is over or has expired. Start a new one with `/game`.');
+        const gone = () => reject(interaction, `This game is over or has expired. Start a new one with ${cmd('game')}.`);
         const alive = () => store.get(game.id) === game;
         if (action === 'stop') { await withLock(game.id, () => (alive() ? askStop(interaction, game) : gone())); return true; }
         if (action === 'stopok' || action === 'stopno') { await withLock(game.id, () => (alive() || action === 'stopno' ? answerStop(interaction, game, mod, action, args) : gone())); return true; }

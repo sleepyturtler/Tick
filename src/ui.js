@@ -82,38 +82,6 @@ async function buildHighscoresEmbed(page, filter='interactive') {
     return{totalPages:tp,embed:v2.card({accent:v2.COLORS.STATS,title:v2.cleanTitle(titles[mode]),blocks:[resolved.join('\n')],footer:`**Page ${page}/${tp}**`})};
 }
 
-function buildSetupEmbed(gid, g) {
-    const chans=channelsOf(gid);
-    const list=chans.length?chans.map(channelLine).join('\n').slice(0,1000):'None yet \u2014 press **Add Channel**';
-    return {
-        embeds:[E('#5865F2','\u2699\ufe0f Counting Bot \u2014 Setup').setDescription('Use the buttons below to configure the bot. All settings are saved instantly.').addFields(
-            {name:`\u{1F4CD} Counting Channels (${chans.length}/${MAX_COUNTING_CHANNELS})`,value:list},
-            {name:'\u{1F501} Max Streak',value:`**${g.maxStreak}** in a row`,inline:true},
-            {name:'\u{1F9EE} Expressions',value:g.allowExpressions?'Allowed':'Disabled',inline:true},
-            {name:'\u{1F512} Access Role',value:g.accessRoleId?`<@&${g.accessRoleId}>`:'Admins only',inline:true},
-            {name:'\u{1F6E1}\ufe0f Server Saves',value:`**${g.saves??0}**`,inline:true},
-            {name:'\u{1F6AB} Fail Role',value:g.failRoleId?`<@&${g.failRoleId}> for **${g.failRoleMinutes??10}** min`:'Off',inline:true},
-            {name:'\u{1F575}\ufe0f Anti-Cheat',value:g.antiCheat?'On':'Off',inline:true},
-            {name:'\u26bd Player Counting',value:g.playerCount?'On':'Off',inline:true},
-        )],
-        components:[
-            new ActionRowBuilder().addComponents(
-                new ButtonBuilder().setCustomId('setup_addchannel').setLabel('Add Channel').setStyle(ButtonStyle.Primary),
-                new ButtonBuilder().setCustomId('setup_removechannel').setLabel('Remove Channel').setStyle(ButtonStyle.Secondary),
-                new ButtonBuilder().setCustomId('setup_counttype').setLabel('Change Mode').setStyle(ButtonStyle.Secondary),
-                new ButtonBuilder().setCustomId('setup_reset').setLabel('Reset Count').setStyle(ButtonStyle.Danger),
-            ),
-            new ActionRowBuilder().addComponents(
-                new ButtonBuilder().setCustomId('setup_expressions').setLabel(g.allowExpressions?'Disable Expressions':'Enable Expressions').setStyle(ButtonStyle.Secondary),
-                new ButtonBuilder().setCustomId('setup_anticheat').setLabel(g.antiCheat?'Disable Anti-Cheat':'Enable Anti-Cheat').setStyle(ButtonStyle.Secondary),
-                new ButtonBuilder().setCustomId('setup_access').setLabel('Set Access Role').setStyle(ButtonStyle.Secondary),
-                new ButtonBuilder().setCustomId('setup_failrole').setLabel('Set Fail Role').setStyle(ButtonStyle.Secondary),
-                new ButtonBuilder().setCustomId('setup_refresh').setLabel('Refresh').setStyle(ButtonStyle.Secondary),
-            ),
-        ],
-    };
-}
-
 const B=(id,label,active)=>new ButtonBuilder().setCustomId(id).setLabel(label).setStyle(active?ButtonStyle.Primary:ButtonStyle.Secondary);
 const statsRow=(uid,gid,active)=>new ActionRowBuilder().addComponents(B(`stats_user_${uid}_${gid}`,'User Stats',active==='user'),B(`stats_server_${uid}_${gid}`,'Server Stats',active==='server'));
 function paginationRow(type,ctx,page,tp){const base=ctx?`lb_${type}_${ctx}`:`lb_${type}`;return new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(`${base}_p${page-1}`).setLabel('\u25c0').setStyle(ButtonStyle.Secondary).setDisabled(page<=1),new ButtonBuilder().setCustomId(`${base}_info`).setLabel(`${page}/${tp}`).setStyle(ButtonStyle.Secondary).setDisabled(true),new ButtonBuilder().setCustomId(`${base}_p${page+1}`).setLabel('\u25b6').setStyle(ButtonStyle.Secondary).setDisabled(page>=tp),new ButtonBuilder().setCustomId(`${base}_p${page}`).setLabel('\u21ba').setStyle(ButtonStyle.Secondary));}
@@ -142,64 +110,6 @@ function pickerRow(gid,purpose){
 }
 
 // The Links page: each link is a line of text with a link button beside it.
-function helpLinksCard(){
-    const link=(label,text,url)=>({text,link:{label,url}});
-    const blocks=[link('Add',`**Add Tick:** invite the bot to a server`,inviteUrl(client.user?.id)),link('Join','**Support server:** help, bugs and updates',SUPPORT_URL),link('Open','**GitHub:** source code',GITHUB_URL),link('Open','**top.gg:** vote and review',TOPGG_URL)];
-    if(WEBSITE_URL)blocks.push(link('Open','**Website:** status and news',WEBSITE_URL),link('Open','**Terms of Service**',`${WEBSITE_URL}/terms`),link('Open','**Privacy Policy**',`${WEBSITE_URL}/privacy`));
-    return v2.card({title:'Links',blocks,footer:'Page 6/6'});
-}
-function buildHelpPage(page){
-    const pages=[
-        E('#5865F2','\u{1F3AE} How to Play').setDescription('Count up (or down!) together in the counting channels.').addFields(
-            {name:'Rules',value:"\u2022 Type the next number\n\u2022 Can't count twice in a row (default)\n\u2022 Wrong number resets the count!\n\u2022 Math expressions supported"},
-            {name:'Correct',value:'React added, count goes up'},{name:'Wrong / too fast',value:'Count resets!'},
-            {name:'Milestones',value:'Bot celebrates every 100 counts'},
-            {name:'Saves',value:'Earned at 50, 100, 250, 500, 1000, 2000, then every 2000. Anyone can use one within 1 minute to undo a ruin!'},
-            {name:'Simple mode',value:'No resets \u2014 wrong messages are silently deleted.'},
-            {name:'Multiple channels',value:'A server can have several counting channels, each with its own mode and count. Threads share the count of the channel they live in.'},
-            {name:'\u26bd Player counting',value:'Type a football player\'s name with a game tag and their EA FC overall rating is your number! Like `lamine yamal:fc25` or `pedri:fifa19` (FIFA 15 to FC 27). A name without a tag is just chat and doesn\'t count. An admin turns this on with `/counting players`.'},
-        ).setFooter({text:'Page 1/6'}),
-        E('#5865F2','Commands').setDescription('All commands:').addFields(
-            {name:'Counting',value:'`/counting reset`'},
-            {name:'Config',value:'`/counting channel` `/counting setcount` `/counting view` `/counting maxstreak` `/counting expressions` `/counting mode` `/counting failrole` `/counting anticheat` `/counting players` `/config access`'},
-            {name:'Stats',value:'`/stats [user]` `/leaderboard server` `/leaderboard global` `/leaderboard highscores` `/leaderboard elo <game>`'},
-            {name:'Utilities',value:'`/calculate [expression]` `/players <name or number>` `/game` `/invite` `/help` `/setup`'},
-            {name:'\u{1F6E0}\ufe0f Support Server',value:`Need help or want to report a bug? [Join the support server](${SUPPORT_URL})`},
-        ).setFooter({text:'Page 2/6'}),
-        E('#5865F2','Config').setDescription('Requires Administrator or configured access role.').addFields(
-            {name:'/counting channel',value:'Shows your counting channels with Add Channel and Remove Channel buttons'},
-            {name:'/counting mode [channel]',value:'Switch a channel between Interactive, Simple, Countdown, Modifiers and Floors'},
-            {name:'/counting maxstreak <n>',value:'Max consecutive counts per user (1\u2013100)'},
-            {name:'/counting expressions <bool>',value:'Allow/block math expressions and equations'},
-            {name:'/config access',value:'Set which role can use the counting commands'},
-            {name:'/counting failrole [role] [minutes]',value:'Give players who ruin the count a temporary role (Administrator only)'},
-            {name:'/counting anticheat <bool>',value:'Call out edited or deleted counts'},
-            {name:'/counting players <bool>',value:'Allow counting with football player names (EA FC ratings)'},
-            {name:'/setup',value:'All-in-one setup panel for admins'},
-        ).setFooter({text:'Page 3/6'}),
-        E('#5865F2','\u23f3 Countdown, \u{1F3B2} Modifiers & \u{1F3E2} Floors').addFields(
-            {name:'\u23f3 Countdown',value:'Count DOWN from 100 to 1! When you hit 1, the cycle completes and resets. Wrong number resets to 100. Cycles are tracked on the global leaderboard.'},
-            {name:'\u{1F3B2} Modifiers',value:'Like Interactive, but a modifier decides which numbers are valid. The bot only tells you the category \u2014 work out the next number yourself! The modifier changes every time the count resets.'},
-            {name:'Modifier categories',value:'\u2022 Every 2nd / 3rd number\n\u2022 Primes only\n\u2022 Fibonacci sequence\n\u2022 Perfect squares\n\u2022 Palindromes\n\u2022 Multiples of 7\n\u2022 Triangular numbers'},
-            {name:'\u{1F3E2} Floors',value:'Like Interactive, but every 100 is a floor checkpoint. Ruin the count and you drop back to your highest checkpoint instead of 0.'},
-        ).setFooter({text:'Page 4/6'}),
-        E('#5865F2','Expressions').setDescription('Math expressions, rounded to nearest whole number.').addFields(
-            {name:'Operators',value:'`+` `-` `*` `/` `^` `|x|` (absolute value)'},
-            {name:'Constants',value:'`pi` `phi` `e` `tau` `sqrt2`'},
-            {name:'Functions',value:'`ln` `log` `log2` `sqrt(x,n)` `cbrt` `pow(x,n)` `sin` `cos` `tan` `asin`/`arcsin` `acos`/`arccos` `atan`/`arctan` `floor` `ceil` `abs` `exp` `round`'},
-            {name:'Examples',value:'`ln(e)`\u2192**1** `log(10)`\u2192**1** `sin(pi)`\u2192**0** `pi^2`\u2192**10** `2^8`\u2192**256** `|3-10|`\u2192**7**'},
-            {name:'Equations',value:'Type an equation with `x` and the count is the number that solves it. `2x+3=13` counts as **5**, `x^2=25` counts as **5**, `|x-10|=3` counts as **7** or **13**. Both sides can use anything above. Equations that are true for every number (`x=x`) do not count.'},
-            {name:'Players',value:'With player counting on, a player with a game tag works inside expressions and equations: `lamine yamal:fc25+25`, `2*pedri:fc24`, `x=son heung-min:fc23+1`.'},
-            {name:'/calculate',value:'Type a number to get 3 expressions, or type your own expression to evaluate it!'},
-        ).setFooter({text:'Page 5/6'}),
-        helpLinksCard(),
-    ];
-    // six tabs do not fit in one row of five
-    return{embeds:[pages[page-1]],components:[
-        new ActionRowBuilder().addComponents(B('help_1','How to Play',page===1),B('help_2','Commands',page===2),B('help_3','Config',page===3)),
-        new ActionRowBuilder().addComponents(B('help_4','New Modes',page===4),B('help_5','Expressions',page===5),B('help_6','Links',page===6))]};
-}
-
 const lbRows=(embedRes,activeTab,pRow)=>({embeds:[embedRes.embed],components:[...globalTabRows(activeTab),pRow]});
 function gsPagination(filter,page,totalPages){
     const base=`lb_gs_f${filter}`;
@@ -209,6 +119,6 @@ const noChannels=()=>({content:'No counting channels yet \u2014 add one first.',
 
 module.exports = {
     M, E, ep, guildName, buildUserStatsEmbed, buildServerStatsEmbed, buildServerLbEmbed, buildGlobalUsersEmbed,
-    buildGlobalServersEmbed, buildHighscoresEmbed, buildSetupEmbed, B, statsRow, paginationRow, globalTabRows,
-    highscoreTabRow, countTypeRow, buildChannelsPanel, pickerRow, buildHelpPage, lbRows, gsPagination, noChannels,
+    buildGlobalServersEmbed, buildHighscoresEmbed, B, statsRow, paginationRow, globalTabRows,
+    highscoreTabRow, countTypeRow, buildChannelsPanel, pickerRow, lbRows, gsPagination, noChannels,
 };

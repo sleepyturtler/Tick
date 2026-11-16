@@ -5,6 +5,7 @@ const { CHARACTERS } = require('./guesswho/characters');
 const { EPH, png, mention, reject, pick, stopButton, endButtons, textPayload } = require('./common');
 const elo = require('./elo');
 const { E } = require('../ui');
+const v2 = require('../v2');
 
 const info = {
     id: 'guesswho', label: 'Guess Who', emoji: '\u{1F464}', short: '2 players, narrow down your opponent\'s character',
@@ -17,35 +18,41 @@ const ids = game => [game.state.a, game.state.b];
 const other = (game, id) => (id === game.state.a ? game.state.b : game.state.a);
 const chunks = arr => (arr.length > 25 ? [arr.slice(0, Math.ceil(arr.length / 2)), arr.slice(Math.ceil(arr.length / 2))] : [arr]);
 
+// Each player's own menus sit inside their own card, directly under their board. Only the shared buttons come after both cards.
+function menus(game, id) {
+    const s = game.state;
+    if (game.phase === 'pick') {
+        const half = [NAMES.slice(0, 15), NAMES.slice(15)];
+        return half.map((list, h) => new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId(`g:${game.id}:pick:${id}:${h}`)
+            .setPlaceholder(`${s.names[id]}: pick your character (${list[0]} to ${list[list.length - 1]})`.slice(0, 150)).addOptions(list.map(n => ({ label: n, value: n })))));
+    }
+    if (game.phase === 'play') {
+        return chunks(s.remaining[id]).map((list, h) => new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId(`g:${game.id}:rm:${id}:${h}`)
+            .setPlaceholder(`${s.names[id]}: ${id === s.turn ? 'remove characters' : 'waiting for their turn'}`.slice(0, 150)).setDisabled(id !== s.turn).setMinValues(1).setMaxValues(list.length).addOptions([...list].sort().map(n => ({ label: n, value: n })))));
+    }
+    return [];
+}
+
 async function payload(game, final) {
     if (game.phase === 'over' && final) return textPayload(`${info.emoji} **${info.label}**: ${final}`);   // a finished game leaves one line of text instead of the boards
-    const s = game.state, files = [], embeds = [], components = [];
+    const s = game.state, files = [], cards = [];
     for (let i = 0; i < 2; i++) {
         const id = ids(game)[i], name = s.names[id];
         files.push(png(await render.guessBoard(new Set(s.remaining[id])), `board${i}.png`));
         const status = game.phase === 'pick' ? (s.picks[id] ? '\u2705 Character picked' : '\u23F3 Choosing a character...') : `${s.remaining[id].length} character${s.remaining[id].length === 1 ? '' : 's'} left${game.phase === 'play' && s.turn === id ? '\n\u{1F3AF} **Their turn**' : ''}`;
-        embeds.push(E(COLORS[i], `${name}'s board`).setDescription(`${elo.withRating(game, id)}\n${status}`).setImage(`attachment://board${i}.png`));
+        const card = v2.build({ title: `${name}'s board`, blocks: [`${elo.withRating(game, id)}\n${status}${final && i === 0 ? `\n\n${final}` : ''}`], image: `attachment://board${i}.png` });
+        const rows = menus(game, id);
+        if (rows.length) card.components.push(v2.sep(), ...rows.map(r => r.toJSON()));
+        cards.push(card);
     }
-    if (final) embeds[0].setDescription(`${embeds[0].description}\n\n${final}`);
-    if (game.phase === 'pick') {
-        for (const id of ids(game)) {
-            const half = [NAMES.slice(0, 15), NAMES.slice(15)];
-            half.forEach((list, h) => components.push(new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId(`g:${game.id}:pick:${id}:${h}`)
-                .setPlaceholder(`${s.names[id]}: pick your character (${list[0]} to ${list[list.length - 1]})`.slice(0, 150)).addOptions(list.map(n => ({ label: n, value: n }))))));
-        }
-    } else if (game.phase === 'play') {
-        for (const id of ids(game)) {
-            chunks(s.remaining[id]).forEach((list, h) => components.push(new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId(`g:${game.id}:rm:${id}:${h}`)
-                .setPlaceholder(`${s.names[id]}: ${id === s.turn ? 'remove characters' : 'waiting for their turn'}`.slice(0, 150)).setDisabled(id !== s.turn).setMinValues(1).setMaxValues(list.length).addOptions([...list].sort().map(n => ({ label: n, value: n }))))));
-        }
-    }
+    const components = [...cards];
     if (game.phase !== 'over') {
         const buttons = [new ButtonBuilder().setCustomId(`g:${game.id}:me`).setLabel('My character').setStyle(ButtonStyle.Secondary)];
         if (game.phase === 'play') buttons.push(new ButtonBuilder().setCustomId(`g:${game.id}:end`).setLabel('End turn').setStyle(ButtonStyle.Primary));
         buttons.push(...endButtons(game));
-        components.push(new ActionRowBuilder().addComponents(buttons));
+        components.push(new ActionRowBuilder().addComponents(buttons).toJSON());
     }
-    return { embeds, components, files, attachments: [] };
+    return { components, flags: v2.V2_FLAG, files, attachments: [], allowedMentions: { parse: [] } };
 }
 
 async function start(interaction, { postInvite }) { await postInvite(interaction, 'guesswho'); }

@@ -4,6 +4,7 @@ const { pool } = require('./db');
 const { COUNTDOWN_START, MODE_EMOJI } = require('./config');
 const { safeMode } = require('./config');
 const { resetChannel } = require('./modes');
+const { cmd } = require('./mentions');
 
 // Guild settings (shared by every counting channel in the server) live in `counting`.
 // Each counting channel has its own row in `counting_channels` with its own mode and count.
@@ -12,7 +13,7 @@ const guildCache = new Map(), chanCache = new Map(), guildChans = new Map(), loa
 const flags = { fullyLoaded: false };
 
 function defaultGuild() {
-    return { maxStreak: 1, allowExpressions: true, accessRoleId: null, saves: 0, savesUsed: 0, failRoleId: null, failRoleMinutes: 10, antiCheat: true, playerCount: false, migratedToChannels: true };
+    return { maxStreak: 1, allowExpressions: true, accessRoleId: null, saves: 0, savesUsed: 0, failRoleId: null, failRoleMinutes: 10, allowEquations: true, playerCount: false, migratedToChannels: true };
 }
 function defaultChannel(gid, cid, type = 'interactive') {
     const c = { guildId: gid, channelId: cid, countType: type, current: 0, lastUserId: null, consecutiveCount: 0, lastMessageId: null, highScore: 0, countdownCycles: 0, countdownStart: COUNTDOWN_START, modifier: null, modifierLabel: null, checkpoint: 0 };
@@ -99,8 +100,8 @@ function resolveCounting(interaction, opt) {
     }
     const c = cid ? chanCache.get(cid) : null;
     if (c && c.guildId === gid) return { c };
-    if (opt) return { error: `${opt} isn't a counting channel. Add it with \`/counting channel\` first.` };
-    if (!list.length) return { error: 'No counting channel set up yet. Use `/counting channel` or `/setup`.' };
+    if (opt) return { error: `${opt} isn't a counting channel. Add it with ${cmd('counting channel')} first.` };
+    if (!list.length) return { error: `No counting channel set up yet. Use ${cmd('counting channel')} or ${cmd('transfer')}.` };
     return { error: 'You have more than one counting channel. Pick one with the `channel` option, or run this command inside it.' };
 }
 

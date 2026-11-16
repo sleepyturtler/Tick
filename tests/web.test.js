@@ -25,7 +25,7 @@ test('the landing page: logo, invite button, links, features, online status', as
     assert.ok(html.includes(`href="${cfg.inviteUrl('4242').replace(/&/g, '&amp;')}"`), 'the invite button uses the live bot id');
     assert.ok((html.match(/Add to server|Add Tick to your server/g) ?? []).length >= 2, 'a button in the header and a big one on the page');
     for (const link of ['https://top.gg/bot/1507450543419822242', 'https://github.com/sleepyturtler/Tick', 'https://discord.gg/Qrp82cRhUW', 'href="/terms"', 'href="/privacy"']) assert.ok(html.includes(link), link);
-    for (const word of ['Interactive', 'Countdown', 'Modifiers', 'Floors', '2x+3=13', 'lamine yamal:fc25', 'Battleship', 'Ranked or friendly', '/setup']) assert.ok(html.includes(word), word);
+    for (const word of ['Interactive', 'Countdown', 'Modifiers', 'Floors', '2x+3=13', 'lamine yamal:fc25', 'Battleship', 'Ranked or friendly', '/counting channel', '/counting settings']) assert.ok(html.includes(word), word);
     assert.match(html, /Online/);
 });
 test('the landing page says so when the Discord connection is down, and still serves', async () => {

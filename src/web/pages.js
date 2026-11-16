@@ -95,7 +95,7 @@ ${status}
 <h2>Get started</h2>
 <ol>
 <li>Add Tick to your server with the button above.</li>
-<li>An admin runs <code>/setup</code> to choose the counting channel and mode.</li>
+<li>An admin runs <code>/counting channel</code> to choose the counting channel, and <code>/counting settings</code> to set the mode and the rest.</li>
 <li>Start counting. <code>/help</code> explains the modes, the commands and the expressions.</li>
 </ol>
 

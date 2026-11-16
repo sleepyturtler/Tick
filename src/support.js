@@ -1,7 +1,6 @@
 const { PermissionFlagsBits } = require('discord.js');
 const { pool } = require('./db');
-const { SUPPORT_URL } = require('./config');
-const { E } = require('./ui');
+const tour = require('./tour');
 const { convert: v2c } = require('./v2');
 
 async function hasAnnouncedSupport(gid){try{const r=await pool.query('SELECT 1 FROM support_announced WHERE guild_id=$1',[gid]);return r.rowCount>0;}catch{return true;}}
@@ -22,7 +21,7 @@ function pickAdminChannel(guild){
 async function announceSupportServer(guild){
     if(await hasAnnouncedSupport(guild.id))return;
     const ch=pickAdminChannel(guild);
-    if(ch){await ch.send(v2c({embeds:[E('#5865F2','\u{1F44B} Thanks for adding Counting Bot!').setDescription(`Need help, want to report a bug, or have a feature request?\nJoin the support server: ${SUPPORT_URL}`)]})).catch(()=>{});}
+    if(ch){await ch.send(v2c(tour.welcome())).catch(()=>{});}
     markSupportAnnounced(guild.id);
 }
 

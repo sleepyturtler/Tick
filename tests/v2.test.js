@@ -1,6 +1,7 @@
 // Components V2: the layout of the screens designed in Discohook, the shared style of every other message, and the Discord limits.
 const { assert, test, db, tick, fakeChannel, fakeInteraction, fakeMessage, textOf, nodes, isV2, customIds } = require('./lib');
 const v2 = require('../src/v2');
+const help = require('../src/help');
 const ui = require('../src/ui');
 const client = require('../src/client');
 const games = require('../src/games');
@@ -46,9 +47,8 @@ test('a long message is trimmed to the component and character limits instead of
 test('every settings and help screen fits the limits', async () => {
     const g = await state.getGuild('g1'); Object.assign(g, { failRoleId: 'r1', accessRoleId: 'r2', playerCount: true });
     state.chanCache.clear(); for (const id of ['c1', 'c2', 'c3']) { const c = state.defaultChannel('g1', id, 'interactive'); state.chanCache.set(id, c); }
-    withinLimits(v2.convert(ui.buildSetupEmbed('g1', g)), 'setup');
     withinLimits(v2.convert(ui.buildChannelsPanel('g1')), 'channels panel');
-    for (let page = 1; page <= 6; page++) withinLimits(v2.convert(ui.buildHelpPage(page)), `help ${page}`);
+    for (const t of help.TOPICS) withinLimits(v2.convert(help.buildHelpPage(t.id)), `help ${t.id}`);
 });
 
 // ---------- 1. user stats ----------
@@ -272,7 +272,7 @@ test('no two buttons in any leaderboard, highscore or stats screen share an id',
 
 // ---------- /help: the Links page ----------
 test('/help has a Links page: each link is a line of text with a link button beside it', () => {
-    const p = v2.convert(ui.buildHelpPage(6)), c = p.components[0];
+    const p = v2.convert(help.buildHelpPage('links')), c = p.components[0];
     assert.equal(c.components[0].content, '### Links');
     const sections = c.components.filter(n => n.type === 9);
     const by = Object.fromEntries(sections.map(s => [s.components[0].content, s.accessory]));
@@ -284,17 +284,19 @@ test('/help has a Links page: each link is a line of text with a link button bes
     for (const s of sections) assert.ok(s.accessory.type === 2 && s.accessory.style === 5 && !s.accessory.custom_id, 'link buttons carry a url, not an id');
     withinLimits(p, 'links page');
 });
-test('/help tabs: six pages across two rows, each id once, the open page highlighted', () => {
-    for (let page = 1; page <= 6; page++) {
-        const rows = v2.convert(ui.buildHelpPage(page)).components.filter(n => n.type === 1).map(r => r.components);
-        assert.equal(rows.length, 2); assert.ok(rows.every(r => r.length <= 5));
-        assert.deepEqual(rows.flat().map(b => b.custom_id), ['help_1', 'help_2', 'help_3', 'help_4', 'help_5', 'help_6']);
-        assert.deepEqual(rows.flat().map(b => b.style === 1), [1, 2, 3, 4, 5, 6].map(n => n === page));
+test('/help: one dropdown with every topic (the open one marked) and a Home button on every page but Home', () => {
+    for (const t of help.TOPICS) {
+        const p = v2.convert(help.buildHelpPage(t.id)), rows = p.components.filter(n => n.type === 1);
+        const menu = rows[0].components[0];
+        assert.equal(menu.custom_id, 'help_select'); assert.deepEqual(menu.options.map(o => o.value), help.TOPICS.map(x => x.id));
+        assert.deepEqual(menu.options.filter(o => o.default).map(o => o.value), [t.id], `${t.id} is the marked option`);
+        assert.ok(menu.options.every(o => o.description.length <= 100 && o.label.length <= 100));
+        if (t.id === 'home') assert.equal(rows.length, 1); else { assert.equal(rows.length, 2); assert.equal(rows[1].components[0].custom_id, 'help_home'); }
     }
 });
 test('/help Links: the website, terms and privacy buttons appear when the site address is known', () => {
     const { execFileSync } = require('child_process');
-    const out = execFileSync(process.execPath, ['-r', require.resolve('./lib'), '-e', "const v2=require('./src/v2');const p=v2.convert(require('./src/ui').buildHelpPage(6));console.log(JSON.stringify(p.components[0].components.filter(n=>n.type===9).map(s=>s.accessory.url)))"],
+    const out = execFileSync(process.execPath, ['-r', require.resolve('./lib'), '-e', "const v2=require('./src/v2');const p=v2.convert(require('./src/help').buildHelpPage('links'));console.log(JSON.stringify(p.components[0].components.filter(n=>n.type===9).map(s=>s.accessory.url)))"],
         { cwd: require('path').join(__dirname, '..'), env: { ...process.env, PUBLIC_URL: 'https://tick.example/' } }).toString();
     const urls = JSON.parse(out.trim().split('\n').pop());
     assert.ok(urls.includes('https://tick.example') && urls.includes('https://tick.example/terms') && urls.includes('https://tick.example/privacy'));

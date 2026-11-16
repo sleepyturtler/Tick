@@ -47,7 +47,7 @@ async function handleCount(message){
 
     if(type==='simple'){
         const expected=c.current+1,sameUser=message.author.id===c.lastUserId;
-        if(r.isEq)value=valueFor(r,expected);   // the number the equation solves to, when it is a usable one
+        if(r.isEq&&g.allowEquations!==false)value=valueFor(r,expected);   // the number the equation solves to, when it is a usable one (equations switched off: it stays unusable and is deleted)
         const newStreak=sameUser?c.consecutiveCount+1:1,streakViolation=g.maxStreak>0&&sameUser&&newStreak>g.maxStreak;
         if(!(value!==null||isExpr))return;
         if(value===null||value!==expected||streakViolation){const me=message.guild.members.me;if(!me?.permissionsIn(message.channel).has(PermissionFlagsBits.ManageMessages))return;await message.delete().catch(()=>{});return;}
@@ -61,6 +61,7 @@ async function handleCount(message){
 
     // interactive / countdown / modifiers / floors
     if(isExpr&&!g.allowExpressions){await message.react('\u274c').catch(()=>{});const s=await message.channel.send(v2c({embeds:[E('#ff4444','Expressions disabled').setDescription(`\`${raw}\` \u2014 expressions not allowed here!`)]})).catch(()=>null);if(s)setTimeout(()=>s.delete().catch(()=>{}),5000);return;}
+    if(r.isEq&&r.eq&&g.allowEquations===false){await message.react('\u274c').catch(()=>{});const s=await message.channel.send(v2c({embeds:[E('#ff4444','Equations disabled').setDescription(`\`${raw}\` \u2014 equations not allowed here!`)]})).catch(()=>null);if(s)setTimeout(()=>s.delete().catch(()=>{}),5000);return;}
     if(r.isEq?!r.eq:value===null)return;   // not a number, or an equation with no x: just chatter
     if(type==='countdown'&&(c.current<=0||c.current>c.countdownStart+1))c.current=c.countdownStart+1;
     if(type==='modifiers'&&!c.modifier){const mod=pickModifier();c.modifier=mod.id;c.modifierLabel=mod.label;saveChan(c);await message.channel.send(v2c({embeds:[E('#9b59b6','\u{1F3B2} New Modifier!').setDescription(`The modifier for this round is:\n**${mod.label}**\n${mod.desc}`)]})).catch(()=>{});}
@@ -115,7 +116,7 @@ async function handleCount(message){
     }
 }
 
-// ---------- anti-cheat: call out edited / deleted counts ----------
+// ---------- anti-cheat (always on): call out edited / deleted counts ----------
 function cheatEmbed(kind,c){
     const edited=kind==='edit';
     return E('#ff9900',edited?'\u270f\ufe0f Number edited!':'\u{1F5D1}\ufe0f Number deleted!').setDescription(`<@${c.lastUserId}> ${edited?'edited':'deleted'} their number!\nThe last number was **${showCur(c)}**.\n${nextText(c)}`);
@@ -124,7 +125,6 @@ async function cheatCheck(channelId,messageId,kind,newMessage){
     const cid=countingIdFor(channelId),c=chanCache.get(cid);
     if(!c||!c.lastMessageId||c.lastMessageId!==messageId)return;
     const g=await getGuild(c.guildId);
-    if(g.antiCheat===false)return;
     if(kind==='edit'){
         let m=newMessage;
         if(m.partial)m=await m.fetch().catch(()=>null);

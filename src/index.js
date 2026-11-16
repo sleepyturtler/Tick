@@ -9,6 +9,7 @@ const { loadMissingRatings } = require('./fcload');
 const games = require('./gameshook');
 const { announceSupportServer } = require('./support');
 const { buildCommands } = require('./commands');
+const { setCommands } = require('./mentions');
 const messages = require('./handlers/messages');
 const interactions = require('./handlers/interactions');
 const guildCleanup = require('./guildCleanup');
@@ -18,7 +19,7 @@ function keepAlive(){const ping=()=>{const u=(process.env.RENDER_EXTERNAL_URL||`
 client.once('ready',async()=>{
     console.log(`Online as ${client.user.tag}`);
     client.user.setPresence({activities:[{name:'Counting things',type:ActivityType.Watching}],status:'online'});
-    await client.application.commands.set(buildCommands());console.log('Commands registered');
+    setCommands(await client.application.commands.set(buildCommands()));console.log('Commands registered');
     try{
         await initDB();
         const [gr,cr]=await Promise.all([pool.query('SELECT guild_id,data FROM counting'),pool.query('SELECT guild_id,channel_id,data FROM counting_channels')]);

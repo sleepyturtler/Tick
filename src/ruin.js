@@ -27,14 +27,14 @@ function announce(guild, c, embed) {
     const ch = guild?.channels.cache.get(c.channelId);
     if (ch && ch.isTextBased?.() && !ch.isThread?.()) ch.send(v2c({ embeds: [embed] })).catch(() => {});
 }
-async function addCountingChannel(guild, cid, mode) {
+async function addCountingChannel(guild, cid, mode, { quiet = false } = {}) {
     const gid = guild.id;
     await getGuild(gid);
     if (chanCache.has(cid)) return { error: 'That channel is already a counting channel.' };
     if (channelsOf(gid).length >= MAX_COUNTING_CHANNELS) return { error: `A server can have up to **${MAX_COUNTING_CHANNELS}** counting channels.` };
     const c = defaultChannel(gid, cid, safeMode(mode) ?? 'interactive');
     indexChan(c); saveChan(c);
-    announce(guild, c, E('#5865F2', `${MODE_EMOJI[c.countType]} Counting started \u2014 ${MODE_LABEL[c.countType]} mode`).setDescription(modeIntro(c)));
+    if (!quiet) announce(guild, c, E('#5865F2', `${MODE_EMOJI[c.countType]} Counting started \u2014 ${MODE_LABEL[c.countType]} mode`).setDescription(modeIntro(c)));
     return { c };
 }
 
