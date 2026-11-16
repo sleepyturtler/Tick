@@ -306,4 +306,3 @@ test('pressing a Links tab button shows the page', async () => {
     const { i } = await press('help_6', {});
     const sent = i.updated[0]; assert.ok(sent && isV2(sent)); assert.match(textOf(sent), /GitHub/);
 });
-
