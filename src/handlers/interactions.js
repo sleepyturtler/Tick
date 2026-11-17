@@ -172,7 +172,7 @@ async function onInteraction(interaction){
                 return interaction.editReply({embeds:[E('#5865F2','Counting Status').addFields(
                     {name:`Counting channels (${chans.length}/${MAX_COUNTING_CHANNELS})`,value:chans.length?chans.map(c=>`${channelLine(c)}${c.lastUserId?` \u00b7 last <@${c.lastUserId}>`:''}`).join('\n').slice(0,1020):`None set up yet \u2014 use ${mention('counting channel')}`},
                     {name:'Streak',value:`**${g.maxStreak}** in a row`,inline:true},{name:'Expressions',value:g.allowExpressions?'Allowed':'Disabled',inline:true},{name:'Equations',value:g.allowExpressions&&g.allowEquations!==false?'Allowed':'Disabled',inline:true},{name:'Saves',value:`**${g.saves??0}**`,inline:true},
-                    {name:'Access',value:g.accessRoleId?`<@&${g.accessRoleId}>`:'Admins only',inline:true},{name:'Fail role',value:g.failRoleId?`<@&${g.failRoleId}> (${g.failRoleMinutes??10} min)`:'Off',inline:true},{name:'Anti-cheat',value:g.antiCheat?'On':'Off',inline:true},
+                    {name:'Access',value:g.accessRoleId?`<@&${g.accessRoleId}>`:'Admins only',inline:true},{name:'Fail role',value:g.failRoleId?`<@&${g.failRoleId}> (${g.failRoleMinutes??10} min)`:'Off',inline:true},{name:'Anti-cheat',value:'Always on',inline:true},
                     {name:'Players',value:g.playerCount?'On':'Off',inline:true},
                 )]});
             }
