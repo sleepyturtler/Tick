@@ -3,7 +3,8 @@
   <img src="https://img.shields.io/badge/ADD%20ME-5865F2?style=for-the-badge" alt="Add me">
 </a>
 <a href="https://tick-1-7omi.onrender.com">
-  <img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Ftick-1-7omi.onrender%2Fstats&amp;query=%24.servers&amp;label=IN&amp;suffix=%20servers&amp;color=22c55e&amp;style=for-the-badge&amp;cacheSeconds=3600&amp;v=2" alt="Server count">
+  <img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Ftick-1-7omi.onrender.com%2Fstats&amp;query=%24.servers&amp;label=IN&amp;suffix=%20servers&amp;color=22c55e&amp;style=for-the-badge&amp;cacheSeconds=3600&amp;v=2" alt="Server count">
+</a>
 <a href="https://top.gg/bot/1507450543419822242">
   <img src="https://img.shields.io/badge/NOW ON%20TOP.GG-FF3366?style=for-the-badge" alt="Top.gg">
 </a>
