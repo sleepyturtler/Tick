@@ -9,21 +9,24 @@ const { loadMissingRatings } = require('./fcload');
 const games = require('./gameshook');
 const { announceSupportServer } = require('./support');
 const { buildCommands } = require('./commands');
+const { setCommands } = require('./mentions');
 const messages = require('./handlers/messages');
 const interactions = require('./handlers/interactions');
+const guildCleanup = require('./guildCleanup');
 
-function keepAlive(){const ping=()=>{const u=process.env.RENDER_EXTERNAL_URL||`http://localhost:${process.env.PORT||3000}`;(u.startsWith('https')?require('https'):http).get(u,()=>{}).on('error',()=>{});};setTimeout(ping,5000);setInterval(ping,14*60*1000);}
+function keepAlive(){const ping=()=>{const u=(process.env.RENDER_EXTERNAL_URL||`http://localhost:${process.env.PORT||3000}`).replace(/\/$/,'')+'/health';(u.startsWith('https')?require('https'):http).get(u,()=>{}).on('error',()=>{});};setTimeout(ping,5000);setInterval(ping,14*60*1000);}
 
 client.once('ready',async()=>{
     console.log(`Online as ${client.user.tag}`);
     client.user.setPresence({activities:[{name:'Counting things',type:ActivityType.Watching}],status:'online'});
-    await client.application.commands.set(buildCommands());console.log('Commands registered');
+    setCommands(await client.application.commands.set(buildCommands()));console.log('Commands registered');
     try{
         await initDB();
         const [gr,cr]=await Promise.all([pool.query('SELECT guild_id,data FROM counting'),pool.query('SELECT guild_id,channel_id,data FROM counting_channels')]);
         for(const r of gr.rows)guildCache.set(r.guild_id,normGuild(r.data));
         for(const r of cr.rows)indexChan(normChan({...r.data,guildId:r.guild_id,channelId:r.channel_id}));
         flags.fullyLoaded=true;
+        await guildCleanup.start().catch(e=>console.error('server cleanup:',e.message));   // before the games load, so nothing of a deleted server is restored
         console.log(`Loaded ${cr.rows.length} counting channel(s) across ${gr.rows.length} guild(s)`);
         await restoreFailRoles();
         if(games)await games.init().catch(e=>console.error('games init:',e.message));
@@ -41,10 +44,10 @@ client.on('channelDelete',ch=>{if(ch.guildId&&chanCache.has(ch.id))removeCountin
 
 messages.register();
 interactions.register();
+guildCleanup.register();
 
 process.on('unhandledRejection',e=>console.error(e));
 client.on('error',e=>console.error('Discord error:',e));
 client.login(process.env.DISCORD_TOKEN);
 
-const PORT=process.env.PORT||3000;
-http.createServer((req,res)=>{const ok=req.url==='/'||req.url==='/health';res.writeHead(ok?200:404,{'Content-Type':'text/plain'});res.end(ok?'Tick is running!':'Not found');}).listen(PORT,()=>console.log(`HTTP on port ${PORT}`));
+require('./web/server').listen();   // the website, the logos, /health and /stats

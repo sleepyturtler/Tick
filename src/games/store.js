@@ -25,18 +25,32 @@ async function init() {
     return [...games.values()];
 }
 
+// Database writes for one game run strictly in the order they were made. Without this, a slow "save" from an earlier move could
+// land after the "delete" at the end of the game and bring a finished game back to life in the database.
+const queues = new Map();
+function enqueue(id, fn, what) {
+    const prev = queues.get(id) ?? Promise.resolve();
+    const next = prev.then(fn).catch(e => console.error(`${what} game:`, e.message));
+    queues.set(id, next);
+    next.finally(() => { if (queues.get(id) === next) queues.delete(id); });
+    return next;
+}
+const flush = () => Promise.all([...queues.values()]);   // waits for pending writes (used by tests)
+
 function add(game) { game.updatedAt = Date.now(); games.set(game.id, game); persist(game); return game; }
-function save(game) { game.updatedAt = Date.now(); persist(game); }
+// touch: false saves without counting as activity (re-posting a game's message at the bottom must not keep an abandoned game alive)
+function save(game, { touch = true } = {}) { if (touch) game.updatedAt = Date.now(); persist(game); }
 function persist(game) {
-    pool.query('INSERT INTO games (id, type, guild_id, channel_id, data, updated_at) VALUES ($1,$2,$3,$4,$5,NOW()) ON CONFLICT (id) DO UPDATE SET data=$5, updated_at=NOW()',
-        [game.id, game.type, game.guildId, game.channelId, game]).catch(e => console.error('save game:', e.message));
+    const snapshot = JSON.stringify(game);   // the state as it is right now, not as it will be when the write runs
+    enqueue(game.id, () => pool.query('INSERT INTO games (id, type, guild_id, channel_id, data, updated_at) VALUES ($1,$2,$3,$4,$5::jsonb,NOW()) ON CONFLICT (id) DO UPDATE SET data=$5::jsonb, updated_at=NOW()',
+        [game.id, game.type, game.guildId, game.channelId, snapshot]), 'save');
 }
 function remove(game) {
     games.delete(game.id);
-    pool.query('DELETE FROM games WHERE id=$1', [game.id]).catch(e => console.error('delete game:', e.message));
+    enqueue(game.id, () => pool.query('DELETE FROM games WHERE id=$1', [game.id]), 'delete');
 }
 const get = id => games.get(id);
 const all = () => [...games.values()];
 const forUserInChannel = (userId, channelId) => all().filter(g => g.channelId === channelId && g.messageId && g.userIds.includes(userId));
 
-module.exports = { init, add, save, remove, get, all, forUserInChannel };
+module.exports = { init, add, save, remove, flush, get, all, forUserInChannel };

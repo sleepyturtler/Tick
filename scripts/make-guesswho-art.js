@@ -2,7 +2,7 @@
 //   node scripts/make-guesswho-art.js
 const fs = require('fs'), path = require('path');
 const { createCanvas, loadImage, GlobalFonts } = require('@napi-rs/canvas');
-const { renderCharacter, CHARACTERS } = require('../src/games/guesswho/art3d');
+const { renderCharacter, CHARACTERS } = require('../src/games/guesswho/art2d');
 
 GlobalFonts.registerFromPath(path.join(__dirname, '..', 'assets', 'fonts', 'DejaVuSans-Bold.ttf'), 'GFB');
 const out = path.join(__dirname, '..', 'assets', 'guesswho');
@@ -11,7 +11,7 @@ fs.mkdirSync(out, { recursive: true });
 (async () => {
     const t0 = Date.now(), imgs = [];
     for (const ch of CHARACTERS) {
-        const buf = renderCharacter(ch, 256, 2);
+        const buf = renderCharacter(ch, 256);
         fs.writeFileSync(path.join(out, `${ch.name.toLowerCase()}.png`), buf);
         imgs.push(await loadImage(buf));
     }

@@ -38,10 +38,32 @@ const GAME_TTL_MIN = envInt('GAME_TTL_MIN', 30);          // a game with no acti
 const INVITE_TTL_MIN = envInt('INVITE_TTL_MIN', 5);       // an unanswered invitation expires after this long
 const DISCUSS_SECONDS = envInt('DISCUSS_SECONDS', 120);   // Impostor discussion round
 const VOTE_SECONDS = envInt('VOTE_SECONDS', 60);          // Impostor voting round
+const WYR_MIN_SECONDS = envInt('WYR_MIN_SECONDS', 15);    // Would you rather: a question stays up at least this long before Next works
+const BUMP_AFTER_MESSAGES = envInt('BUMP_AFTER_MESSAGES', 5);   // a game message is re-posted at the bottom once this many other messages have appeared after it
+const BUMP_MIN_SECONDS = envInt('BUMP_MIN_SECONDS', 20);        // ...but never more often than this per game
+const ELO_START = envInt('ELO_START', 1000);   // starting rating for the 1v1 games (ratings are bot-wide, one per player per game)
+const ELO_K = envInt('ELO_K', 32);             // how far one result moves a rating
+// ----- website and invite -----
+const GITHUB_URL = 'https://github.com/sleepyturtler/Tick';
+const TOPGG_URL = 'https://top.gg/bot/1507450543419822242';
+// Where the website lives, when known (PUBLIC_URL, or the address Render gives the service). Used for the Terms and Privacy links in /help.
+const WEBSITE_URL = (process.env.PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || '').replace(/\/$/, '');
+const DEFAULT_CLIENT_ID = process.env.CLIENT_ID || '1507450543419822242';   // used for the invite link until the bot has connected and knows its own id
+// The invite link: bot plus slash commands, with the permissions the bot asks for. /invite and the website both use this one.
+const inviteUrl = (clientId = DEFAULT_CLIENT_ID) => `https://discord.com/oauth2/authorize?client_id=${clientId}&permissions=${INVITE_PERMS.bitfield ?? INVITE_PERMS}&scope=bot%20applications.commands`;
+
+// ----- deleting a server's data after the bot is removed -----
+// The data is queued for deletion when the bot leaves and deleted this long afterwards. Adding the bot back before then cancels it.
+// GUILD_PURGE_GRACE_MINUTES shortens it for testing.
+const GUILD_PURGE_GRACE_MS = envInt('GUILD_PURGE_GRACE_MINUTES', 7 * 24 * 60) * 60_000;
+const GUILD_SWEEP_INTERVAL_MS = 6 * 60 * 60_000;   // how often queued deletions are checked
+
+const PAIR_COOLDOWN_MIN = envInt('PAIR_COOLDOWN_MIN', 120);   // win trading guard: two players who just finished a rated game against each other get no Elo from another one until this many minutes have passed
 
 module.exports = {
-    GAME_TTL_MIN, INVITE_TTL_MIN, DISCUSS_SECONDS, VOTE_SECONDS,
+    GAME_TTL_MIN, INVITE_TTL_MIN, DISCUSS_SECONDS, VOTE_SECONDS, WYR_MIN_SECONDS, BUMP_AFTER_MESSAGES, BUMP_MIN_SECONDS, ELO_START, ELO_K, PAIR_COOLDOWN_MIN,
     envInt, PS, SLB_MAX, COUNTDOWN_START, FLOOR_SIZE, MAX_COUNTING_CHANNELS, MAX_SAVES, MODES, safeMode, usesSaves,
     LEGACY_GUILD_KEYS, MODE_EMOJI, MODE_LABEL, MODE_CHOICES, COUNTING_CHANNEL_TYPES, NE, SUPPORT_URL, INVITE_PERMS,
     LATEST_FC, FC_AUTOLOAD,
+    GITHUB_URL, TOPGG_URL, WEBSITE_URL, DEFAULT_CLIENT_ID, inviteUrl, GUILD_PURGE_GRACE_MS, GUILD_SWEEP_INTERVAL_MS,
 };

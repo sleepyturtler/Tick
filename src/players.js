@@ -3,6 +3,7 @@
 //   a number -> 3 players with that overall, each from a different game, with a Reroll button for a fresh set
 const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const fc = require('./fc');
+const { cmd } = require('./mentions');
 const { E, ep } = require('./ui');
 
 // FUT card colours: gold 75+, silver 65 to 74, bronze below
@@ -47,7 +48,7 @@ async function handlePlayers(interaction) {
 async function handleReroll(interaction) {
     try {
         const [, , ovrStr, ownerId] = interaction.customId.split('_');
-        if (interaction.user.id !== ownerId) return interaction.reply({ content: 'Only the person who ran this command can reroll it. Run `/players` yourself to get your own.', ...ep() });
+        if (interaction.user.id !== ownerId) return interaction.reply({ content: `Only the person who ran this command can reroll it. Run ${cmd('players')} yourself to get your own.`, ...ep() });
         const ovr = parseInt(ovrStr, 10);
         return await interaction.update(numberReply(ovr, ownerId, await fc.randomByOvr(ovr)));
     } catch (e) {

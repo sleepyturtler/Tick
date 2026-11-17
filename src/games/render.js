@@ -83,7 +83,8 @@ function hangman({ slots, wrong, stage, reveal }) {
 }
 
 // ---------- sink the ship ----------
-const COLS = 'abcdefgh';
+const COLS = 'abcdefghij';
+const rng = seed => () => (seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296;
 function splash(g, cx, cy, s) {
     g.strokeStyle = 'rgba(255,255,255,0.95)'; g.fillStyle = 'rgba(255,255,255,0.95)';
     for (const [r, a] of [[0.14, 1], [0.26, 0.75], [0.38, 0.45]]) { g.globalAlpha = a; g.lineWidth = 3; g.beginPath(); g.arc(cx, cy, s * r, 0, Math.PI * 2); g.stroke(); }
@@ -94,24 +95,82 @@ function redX(g, cx, cy, s) {
     const r = s * 0.3;
     for (const [col, w] of [['#4a0b0b', 13], ['#ed4245', 8]]) { g.strokeStyle = col; g.lineWidth = w; g.lineCap = 'round'; g.beginPath(); g.moveTo(cx - r, cy - r); g.lineTo(cx + r, cy + r); g.moveTo(cx + r, cy - r); g.lineTo(cx - r, cy + r); g.stroke(); }
 }
-// ships: [[{x,y}...]] cells of each placed ship (own board only); shots: { "x,y": 'hit' | 'miss' }
-function seaBoard({ ships = [], shots = {}, label }) {
-    const cell = 54, m = 36, W = m + 8 * cell + 10, H = m + 8 * cell + 10, { c, g } = make(W, H, '#1e2124');
-    const grad = g.createLinearGradient(0, m, 0, H); grad.addColorStop(0, '#2f7fc1'); grad.addColorStop(1, '#1a4f86');
-    g.fillStyle = grad; g.fillRect(m, m, 8 * cell, 8 * cell);
-    g.strokeStyle = 'rgba(255,255,255,0.22)'; g.lineWidth = 1.5;
-    for (let i = 0; i <= 8; i++) { g.beginPath(); g.moveTo(m + i * cell, m); g.lineTo(m + i * cell, m + 8 * cell); g.stroke(); g.beginPath(); g.moveTo(m, m + i * cell); g.lineTo(m + 8 * cell, m + i * cell); g.stroke(); }
-    g.fillStyle = '#b5bac1'; g.font = 'bold 20px GFB'; g.textAlign = 'center'; g.textBaseline = 'middle';
-    for (let i = 0; i < 8; i++) { g.fillText(COLS[i], m + i * cell + cell / 2, m / 2); g.fillText(String(i + 1), m / 2, m + i * cell + cell / 2); }
-    for (const cells of ships) {
-        const xs = cells.map(p => p.x), ys = cells.map(p => p.y), x0 = Math.min(...xs), y0 = Math.min(...ys), w = Math.max(...xs) - x0 + 1, h = Math.max(...ys) - y0 + 1;
-        g.fillStyle = '#6b7280'; g.strokeStyle = '#2b2f36'; g.lineWidth = 3;
-        g.beginPath(); g.roundRect(m + x0 * cell + 5, m + y0 * cell + 5, w * cell - 10, h * cell - 10, 14); g.fill(); g.stroke();
-        g.fillStyle = '#9aa1ad'; g.beginPath(); g.roundRect(m + x0 * cell + 10, m + y0 * cell + 10, w * cell - 20, h * cell - 20, 10); g.fill();
+// A ship tile that has been hit: scorched hull, cracks, a missing corner and rubble falling into the water.
+function crumbled(g, px, py, cell, seed) {
+    const r = rng(seed), cx = px + cell / 2, cy = py + cell / 2;
+    g.fillStyle = '#2d3036'; g.beginPath(); g.roundRect(px + 4, py + 4, cell - 8, cell - 8, 8); g.fill();
+    const glow = g.createRadialGradient(cx, cy, 2, cx, cy, cell * 0.58); glow.addColorStop(0, 'rgba(255,150,40,0.9)'); glow.addColorStop(0.6, 'rgba(255,90,30,0.35)'); glow.addColorStop(1, 'rgba(255,80,20,0)');
+    g.fillStyle = glow; g.fillRect(px, py, cell, cell);
+    // broken-off corner, showing water
+    const corner = Math.floor(r() * 4), cs = cell * (0.28 + r() * 0.12), cxs = corner % 2 ? px + cell - 4 : px + 4, cys = corner < 2 ? py + 4 : py + cell - 4, sx = corner % 2 ? -1 : 1, sy = corner < 2 ? 1 : -1;
+    g.fillStyle = '#1f5b93'; g.beginPath(); g.moveTo(cxs, cys); g.lineTo(cxs + sx * cs, cys); g.lineTo(cxs + sx * cs * 0.3, cys + sy * cs * 0.55); g.lineTo(cxs, cys + sy * cs); g.closePath(); g.fill();
+    // cracks
+    g.strokeStyle = '#0d0e10'; g.lineWidth = Math.max(2, cell * 0.045); g.lineCap = 'round'; g.lineJoin = 'round';
+    for (let i = 0; i < 3; i++) {
+        let x = px + 6 + r() * (cell - 12), y = py + 6 + r() * (cell - 12); g.beginPath(); g.moveTo(x, y);
+        for (let k = 0; k < 3; k++) { x += (cx - x) * 0.35 + (r() - 0.5) * cell * 0.5; y += (cy - y) * 0.35 + (r() - 0.5) * cell * 0.5; g.lineTo(x, y); }
+        g.stroke();
     }
+    // loose chunks of hull
+    for (let i = 0; i < 6; i++) {
+        const x = px + 8 + r() * (cell - 16), y = py + 8 + r() * (cell - 16), sz = cell * (0.07 + r() * 0.08);
+        g.fillStyle = r() < 0.5 ? '#868c97' : '#5a5f69'; g.beginPath(); g.moveTo(x, y - sz); g.lineTo(x + sz, y + sz * 0.6); g.lineTo(x - sz * 0.8, y + sz); g.closePath(); g.fill();
+    }
+    // rubble that fell into the water around the tile
+    for (let i = 0; i < 5; i++) {
+        const ang = r() * Math.PI * 2, d = cell * (0.5 + r() * 0.16), x = cx + Math.cos(ang) * d, y = cy + Math.sin(ang) * d, sz = cell * (0.035 + r() * 0.04);
+        g.globalAlpha = 0.85; g.fillStyle = '#3d4149'; g.beginPath(); g.moveTo(x, y - sz); g.lineTo(x + sz, y + sz); g.lineTo(x - sz, y + sz * 0.7); g.closePath(); g.fill();
+    }
+    g.globalAlpha = 1;
+}
+const FLEET = { hull: '#566170', edge: '#1d2127', deck: '#8995a6', cabin: '#d3d9e1', funnel: '#c0392b', window: '#26384f', gun: '#3b434e' };
+const WRECK = { hull: '#6d393e', edge: '#2a1013', deck: '#93545a', cabin: '#c59a9d', funnel: '#47222a', window: '#2a1013', gun: '#47222a' };
+// A ship as a ship: pointed bow, flat stern, deck, cabin, funnel and gun turrets. The bow points right (horizontal) or down (vertical).
+function drawShip(g, cells, cell, m, pal) {
+    const xs = cells.map(p => p.x), ys = cells.map(p => p.y), x0 = Math.min(...xs), y0 = Math.min(...ys), w = Math.max(...xs) - x0 + 1, h = Math.max(...ys) - y0 + 1;
+    const len = Math.max(w, h), horizontal = w >= h, L = len * cell - 8, H = cell - 14, bl = len === 1 ? L * 0.34 : Math.min(H * 1.05, L * 0.42);
+    g.save(); g.translate(m + (x0 + w / 2) * cell, m + (y0 + h / 2) * cell); if (!horizontal) g.rotate(Math.PI / 2);
+    const hull = () => {
+        g.beginPath(); g.moveTo(-L / 2 + 7, -H / 2); g.lineTo(L / 2 - bl, -H / 2);
+        g.quadraticCurveTo(L / 2 - bl * 0.25, -H / 2, L / 2, 0); g.quadraticCurveTo(L / 2 - bl * 0.25, H / 2, L / 2 - bl, H / 2);
+        g.lineTo(-L / 2 + 7, H / 2); g.quadraticCurveTo(-L / 2, H / 2, -L / 2, H / 2 - 7); g.lineTo(-L / 2, -H / 2 + 7); g.quadraticCurveTo(-L / 2, -H / 2, -L / 2 + 7, -H / 2); g.closePath();
+    };
+    hull(); g.fillStyle = pal.hull; g.fill(); g.lineWidth = 3; g.strokeStyle = pal.edge; g.lineJoin = 'round'; g.stroke();
+    g.save(); g.scale((L - 12) / L, (H - 9) / H); hull(); g.fillStyle = pal.deck; g.fill(); g.restore();   // lighter deck inside the hull
+    if (len === 1) {   // a small boat: just a little cabin
+        g.fillStyle = pal.cabin; g.beginPath(); g.roundRect(-L * 0.2, -H * 0.2, L * 0.34, H * 0.4, 3); g.fill();
+    } else {
+        const cw = Math.min(L * 0.3, cell * 0.95);
+        g.fillStyle = pal.cabin; g.beginPath(); g.roundRect(-L / 2 + L * 0.14, -H * 0.27, cw, H * 0.54, 3); g.fill();            // superstructure near the stern
+        g.fillStyle = pal.window; for (let k = 0; k < 3; k++) g.fillRect(-L / 2 + L * 0.14 + 4 + k * (cw - 8) / 2.6, -H * 0.08, 3.2, H * 0.16);
+        if (len >= 3) { g.fillStyle = pal.funnel; g.beginPath(); g.arc(-L / 2 + L * 0.14 + cw + H * 0.2, 0, H * 0.16, 0, Math.PI * 2); g.fill(); g.strokeStyle = pal.edge; g.lineWidth = 1.5; g.stroke(); }   // funnel
+        if (len >= 2) { g.fillStyle = pal.gun; g.beginPath(); g.arc(L / 2 - bl - H * 0.12, 0, H * 0.14, 0, Math.PI * 2); g.fill(); g.fillRect(L / 2 - bl - H * 0.12, -1.6, H * 0.42, 3.2); }   // gun turret and barrel on the foredeck
+        if (len >= 4) { g.fillStyle = pal.gun; g.beginPath(); g.arc(-L / 2 + L * 0.14 + cw + H * 0.62, 0, H * 0.12, 0, Math.PI * 2); g.fill(); }
+    }
+    g.restore();
+}
+// mode 'own': ships are yours, hits crumble the tile. mode 'enemy': your shots, with sunk enemy ships revealed.
+// ships / revealed: arrays of cell lists [{x,y}...]; shots: { "x,y": 'hit' | 'miss' }
+function seaBoard({ size = 8, ships = [], revealed = [], shots = {}, mode = 'enemy', target = null }) {
+    const cell = size <= 6 ? 66 : size <= 8 ? 54 : 46, m = 36, W = m + size * cell + 10, H = m + size * cell + 10, { c, g } = make(W, H, '#1e2124');
+    const grad = g.createLinearGradient(0, m, 0, H); grad.addColorStop(0, '#2f7fc1'); grad.addColorStop(1, '#1a4f86');
+    g.fillStyle = grad; g.fillRect(m, m, size * cell, size * cell);
+    g.strokeStyle = 'rgba(255,255,255,0.22)'; g.lineWidth = 1.5;
+    for (let i = 0; i <= size; i++) { g.beginPath(); g.moveTo(m + i * cell, m); g.lineTo(m + i * cell, m + size * cell); g.stroke(); g.beginPath(); g.moveTo(m, m + i * cell); g.lineTo(m + size * cell, m + i * cell); g.stroke(); }
+    g.fillStyle = '#b5bac1'; g.font = 'bold 20px GFB'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    for (let i = 0; i < size; i++) { g.fillText(COLS[i], m + i * cell + cell / 2, m / 2); g.fillText(String(i + 1), m / 2, m + i * cell + cell / 2); }
+    for (const cells of ships) drawShip(g, cells, cell, m, FLEET);
+    for (const cells of revealed) drawShip(g, cells, cell, m, WRECK);   // sunk enemy ships show up on your board
     for (const [key, res] of Object.entries(shots)) {
-        const [x, y] = key.split(',').map(Number), cx = m + x * cell + cell / 2, cy = m + y * cell + cell / 2;
-        if (res === 'hit') redX(g, cx, cy, cell); else splash(g, cx, cy, cell);
+        const [x, y] = key.split(',').map(Number), px = m + x * cell, py = m + y * cell, cx = px + cell / 2, cy = py + cell / 2;
+        if (res === 'hit') { if (mode === 'own') crumbled(g, px, py, cell, x * 131 + y * 17 + size); else redX(g, cx, cy, cell); }
+        else splash(g, cx, cy, cell);
+    }
+    if (target) {   // the square you lined up for your next shot
+        const cx = m + target.x * cell + cell / 2, cy = m + target.y * cell + cell / 2, r = cell * 0.34;
+        g.strokeStyle = '#fee75c'; g.lineWidth = 3.5; g.lineCap = 'round';
+        g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.stroke();
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { g.beginPath(); g.moveTo(cx + dx * r * 0.55, cy + dy * r * 0.55); g.lineTo(cx + dx * r * 1.3, cy + dy * r * 1.3); g.stroke(); }
     }
     return out(c);
 }

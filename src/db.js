@@ -23,6 +23,7 @@ async function initDB() {
         CREATE INDEX IF NOT EXISTS user_stats_user ON user_stats(user_id);
         CREATE TABLE IF NOT EXISTS dedup (message_id TEXT PRIMARY KEY, claimed_at TIMESTAMPTZ DEFAULT NOW());
         CREATE TABLE IF NOT EXISTS support_announced (guild_id TEXT PRIMARY KEY, announced_at TIMESTAMPTZ DEFAULT NOW());
+        CREATE TABLE IF NOT EXISTS guild_purges (guild_id TEXT PRIMARY KEY, delete_after BIGINT NOT NULL, reason TEXT, queued_at TIMESTAMPTZ DEFAULT NOW());
         CREATE TABLE IF NOT EXISTS fail_roles (guild_id TEXT NOT NULL, user_id TEXT NOT NULL, role_id TEXT NOT NULL, expires_at TIMESTAMPTZ NOT NULL, PRIMARY KEY (guild_id, user_id));
     `);
     await pool.query(FC_SCHEMA_SQL);
@@ -122,7 +123,53 @@ async function getHighscoresPage(page, filter) {
     return { rows: rows.rows, total: parseInt(tot.rows[0].cnt) };
 }
 
+// ---------- deleting a server's data ----------
+// Servers waiting to be deleted. delete_after is a time in milliseconds (BIGINT comes back from pg as text, so it is converted).
+async function scheduleGuildPurge(guildId, deleteAfterMs, reason) {
+    const r = await pool.query('INSERT INTO guild_purges (guild_id, delete_after, reason) VALUES ($1,$2,$3) ON CONFLICT (guild_id) DO NOTHING', [guildId, deleteAfterMs, reason ?? null]);
+    return r.rowCount > 0;   // false when it was already queued: its original deadline stands
+}
+async function cancelGuildPurge(guildId) {
+    const r = await pool.query('DELETE FROM guild_purges WHERE guild_id=$1', [guildId]);
+    return r.rowCount > 0;
+}
+async function getQueuedGuildPurges() {
+    const r = await pool.query('SELECT guild_id, delete_after, reason FROM guild_purges');
+    return r.rows.map(x => ({ guild_id: x.guild_id, delete_after: Number(x.delete_after), reason: x.reason }));
+}
+// Every server that has anything stored. The games table only exists once the games have loaded, so it is asked separately.
+async function getStoredGuildIds() {
+    const ids = new Set();
+    const r = await pool.query('SELECT guild_id FROM counting UNION SELECT guild_id FROM counting_channels UNION SELECT guild_id FROM user_stats UNION SELECT guild_id FROM fail_roles');
+    for (const x of r.rows) ids.add(x.guild_id);
+    try { for (const x of (await pool.query('SELECT DISTINCT guild_id FROM games')).rows) ids.add(x.guild_id); } catch { /* no games table yet */ }
+    return [...ids];
+}
+// Removes everything stored for one server, in one transaction. Elo ratings and the same-opponent history belong to the player, not the
+// server, so they stay. Returns how much was removed.
+async function deleteGuildData(guildId) {
+    const cl = await pool.connect();
+    try {
+        await cl.query('BEGIN');
+        const n = async sql => (await cl.query(sql, [guildId])).rowCount;
+        const out = {
+            settings: await n('DELETE FROM counting WHERE guild_id=$1'),
+            channels: await n('DELETE FROM counting_channels WHERE guild_id=$1'),
+            members: await n('DELETE FROM user_stats WHERE guild_id=$1'),
+            failRoles: await n('DELETE FROM fail_roles WHERE guild_id=$1'),
+            welcome: await n('DELETE FROM support_announced WHERE guild_id=$1'),
+        };
+        const hasGames = (await cl.query("SELECT to_regclass('games') AS t")).rows[0].t;
+        out.games = hasGames ? await n('DELETE FROM games WHERE guild_id=$1') : 0;
+        await cl.query('DELETE FROM guild_purges WHERE guild_id=$1', [guildId]);
+        await cl.query('COMMIT');
+        return out;
+    } catch (e) { await cl.query('ROLLBACK').catch(() => {}); throw e; }
+    finally { cl.release(); }
+}
+
 module.exports = {
+    scheduleGuildPurge, cancelGuildPurge, getQueuedGuildPurges, getStoredGuildIds, deleteGuildData,
     pool, initDB, claimMessage, updateUserStat, getUserStats, getUserRank, getServerStats, getServerLbPage,
     getGlobalUsersPage, getGlobalServersPage, getHighscoresPage,
 };

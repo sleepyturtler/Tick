@@ -2,7 +2,7 @@ const { ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder } 
 const store = require('./store');
 const { IMPOSTOR_WORDS } = require('./data');
 const { DISCUSS_SECONDS, VOTE_SECONDS } = require('../config');
-const { EPH, newId, mention, displayName, pick, shuffle, reject, sendTo, editMessage, withLock } = require('./common');
+const { EPH, newId, mention, displayName, pick, shuffle, reject, sendTo, editMessage, withLock, stopButton, textPayload } = require('./common');
 const { E } = require('../ui');
 
 const info = {
@@ -45,7 +45,7 @@ function payload(game) {
             new ButtonBuilder().setCustomId(`g:${game.id}:cancel`).setLabel('Cancel').setStyle(ButtonStyle.Danger));
         return { embeds: [embed], components: [new ActionRowBuilder().addComponents(nSel), new ActionRowBuilder().addComponents(cSel), row] };
     }
-    const wordBtn = label => new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(`g:${game.id}:word`).setLabel(label).setStyle(ButtonStyle.Primary));
+    const wordBtn = label => new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(`g:${game.id}:word`).setLabel(label).setStyle(ButtonStyle.Primary), stopButton(game));
     const names = alive(s).map(p => mention(p.id)).join(', ');
     if (game.phase === 'reveal') {
         const k = s.players.filter(p => p.role === 'impostor').length;
@@ -58,6 +58,7 @@ function payload(game) {
         const voted = Object.keys(s.votes);
         const rows = []; const al = alive(s);
         for (let i = 0; i < al.length; i += 5) rows.push(new ActionRowBuilder().addComponents(al.slice(i, i + 5).map(p => new ButtonBuilder().setCustomId(`g:${game.id}:v:${p.id}`).setLabel(p.name.slice(0, 80)).setStyle(ButtonStyle.Secondary))));
+        if (rows.length < 5) rows.push(new ActionRowBuilder().addComponents(stopButton(game)));   // with 21 or more players left the five rows are full
         return { embeds: [E('#e67e22', `\u{1F5F3}\uFE0F Vote, round ${s.round}`).setDescription(`Who is the impostor? Press a name to vote. You can change your vote until everyone has voted or <t:${unix(s.endsAt)}:R>.\n\n**Voted:** ${voted.length}/${al.length}${voted.length ? `\n${voted.map(mention).join(', ')}` : ''}`)], components: rows };
     }
     return { embeds: [E('#80848e', 'Impostor').setDescription('The game is over.')], components: [] };
@@ -65,8 +66,8 @@ function payload(game) {
 
 function finalPayload(game, winner) {
     const s = game.state, imps = s.players.filter(p => p.role === 'impostor').map(p => mention(p.id)).join(', ');
-    return { embeds: [E(winner === 'crew' ? '#57f287' : '#ed4245', winner === 'crew' ? '\u{1F3C6} The crew wins!' : '\u{1F608} The impostors win!')
-        .setDescription(`${s.log}\n\nThe word was **${s.word}** (${s.category}).\n**Impostor${imps.includes(',') ? 's' : ''}:** ${imps}`)], components: [] };
+    // a finished game leaves one block of text instead of an embed
+    return textPayload(`${info.emoji} **${info.label}**: ${winner === 'crew' ? '\u{1F3C6} The crew wins!' : '\u{1F608} The impostors win!'}\n${s.log}\nThe word was **${s.word}** (${s.category}).\n**Impostor${imps.includes(',') ? 's' : ''}:** ${imps}`);
 }
 
 // ---------- lobby ----------
@@ -140,7 +141,7 @@ async function handle(interaction, game, action, args) {
         if (['n', 'clue', 'start', 'cancel'].includes(action) && !host) return reject(interaction, 'Only the host can do that.');
         if (action === 'n') { s.settings.impostors = Number(interaction.values[0]); store.save(game); return interaction.update(payload(game)); }
         if (action === 'clue') { s.settings.clue = interaction.values[0]; store.save(game); return interaction.update(payload(game)); }
-        if (action === 'cancel') { store.remove(game); return interaction.update({ embeds: [E('#80848e', 'Impostor').setDescription('The lobby was cancelled.')], components: [] }); }
+        if (action === 'cancel') { store.remove(game); return interaction.update(textPayload(`${info.emoji} **${info.label}**: the lobby was cancelled.`)); }
         if (action === 'start') {
             const n = game.userIds.length;
             if (n < MIN_PLAYERS) return reject(interaction, `You need at least ${MIN_PLAYERS} players to start (${n} joined).`);

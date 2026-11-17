@@ -99,4 +99,60 @@ async function randomByOvr(ovr, count = 3) {
     return { picks, games: rows.length };
 }
 
-module.exports = { parseQuery, lookup, pick, norm, gameLabel, fullName, randomByOvr };
+
+// ---------- players inside expressions ----------
+// "lamine yamal:fc25+25" or "2*pedri:fc24" or "x = son heung-min:fc23": every name that is followed by a game tag (":fc25", ":fifa19")
+// is replaced by that player's overall in brackets, so the rest of the text is ordinary math. A bare name with no tag only counts
+// when it is the whole message (see parseQuery), because words like "pi" or "x" would be ambiguous inside a sum.
+const TAG_TEST = /:\s*(?:fc|fifa)\s*\d{2}(?!\d)/i;
+const hasTag = raw => typeof raw === 'string' && TAG_TEST.test(raw);
+const MAX_TAGS = 4, MAX_TEXT = 200;
+
+// -> { text, plain, players: [{ name, game, ovr }], unknown }
+//   text   the message with every player replaced by "(81)", ready for the math parser
+//   plain  the same with bare numbers, only used to tell whether the message looks like an expression
+//   unknown  true when a tagged name could not be found (the count is then neither accepted nor ruined)
+async function substitute(raw) {
+    const out = { text: raw, plain: raw, players: [], unknown: false };
+    if (!hasTag(raw) || raw.length > MAX_TEXT) return out;
+    let text = raw, plain = raw, pos = 0;
+    for (let tags = 0; tags < MAX_TAGS; tags++) {
+        const re = /:\s*(?:fc|fifa)\s*(\d{2})(?!\d)/giu;
+        re.lastIndex = pos;
+        const m = re.exec(text);
+        if (!m) break;
+        const tagEnd = m.index + m[0].length, game = parseInt(m[1], 10);
+        // the name is the run of name characters just before the tag, starting at a letter
+        const before = text.slice(0, m.index), run = /[\p{L}][\p{L}\p{M}\s.'\u2019\-]*$/u.exec(before);
+        if (!run) { pos = tagEnd; continue; }   // nothing that looks like a name, leave the text alone
+        const runStart = run.index, words = [...run[0].matchAll(/\S+/gu)].map(w => ({ s: w[0], at: runStart + w.index }));
+        let hit = null, from = 0;
+        // longest name first (up to 4 words), then drop leading words: "x lamine yamal" falls back to "lamine yamal"
+        for (let k = Math.min(4, words.length); k >= 1 && !hit; k--) {
+            const w = words[words.length - k], name = words.slice(words.length - k).map(x => x.s).join(' ');
+            if (name.replace(/[^\p{L}]/gu, '').length < 3) continue;
+            const p = await lookup({ name, game, explicit: true });
+            if (p) { hit = p; from = w.at; }
+        }
+        // a hyphen could be a minus: "pedri-gavi:fc24" is pedri minus gavi if "pedri-gavi" is nobody
+        if (!hit) {
+            const last = words[words.length - 1], dash = last.s.lastIndexOf('-');
+            if (dash > 0 && dash < last.s.length - 1) {
+                const p = await lookup({ name: last.s.slice(dash + 1), game, explicit: true });
+                if (p) { hit = p; from = last.at + dash + 1; }
+            }
+        }
+        if (!hit) { out.unknown = true; return out; }
+        // every earlier replacement added two characters (the brackets) to text but not to plain, so shift the indexes for plain
+        const shift = 2 * out.players.length;
+        out.players.push({ name: hit.name, game, ovr: hit.ovr });
+        const tail = text.slice(tagEnd), plainTail = plain.slice(tagEnd - shift);
+        text = `${text.slice(0, from)}(${hit.ovr})`; plain = `${plain.slice(0, from - shift)}${hit.ovr}`;
+        pos = text.length; text += tail; plain += plainTail;
+    }
+    // a tag the loop never reached (more than MAX_TAGS of them) is left in, so the message simply fails to parse
+    out.text = text; out.plain = plain;
+    return out;
+}
+
+module.exports = { parseQuery, lookup, pick, norm, gameLabel, fullName, randomByOvr, hasTag, substitute };

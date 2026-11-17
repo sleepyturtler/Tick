@@ -5,6 +5,7 @@ const { chanCache, channelsOf, defaultChannel, getGuild, indexChan, saveChan } =
 const { updateUserStat } = require('./db');
 const { giveFailRole, failRoleNote } = require('./failroles');
 const { E } = require('./ui');
+const { convert: v2c } = require('./v2');
 
 function earnsSave(v){const ms=[50,100,250,500,1000,2000];return ms.includes(v)||(v>2000&&v%2000===0);}
 function nextSaveAt(v){const ms=[50,100,250,500,1000,2000];for(const m of ms)if(v<m)return m;return Math.ceil((v+1)/2000)*2000;}
@@ -24,16 +25,16 @@ function switchMode(guild, c, newType) {
 }
 function announce(guild, c, embed) {
     const ch = guild?.channels.cache.get(c.channelId);
-    if (ch && ch.isTextBased?.() && !ch.isThread?.()) ch.send({ embeds: [embed] }).catch(() => {});
+    if (ch && ch.isTextBased?.() && !ch.isThread?.()) ch.send(v2c({ embeds: [embed] })).catch(() => {});
 }
-async function addCountingChannel(guild, cid, mode) {
+async function addCountingChannel(guild, cid, mode, { quiet = false } = {}) {
     const gid = guild.id;
     await getGuild(gid);
     if (chanCache.has(cid)) return { error: 'That channel is already a counting channel.' };
     if (channelsOf(gid).length >= MAX_COUNTING_CHANNELS) return { error: `A server can have up to **${MAX_COUNTING_CHANNELS}** counting channels.` };
     const c = defaultChannel(gid, cid, safeMode(mode) ?? 'interactive');
     indexChan(c); saveChan(c);
-    announce(guild, c, E('#5865F2', `${MODE_EMOJI[c.countType]} Counting started \u2014 ${MODE_LABEL[c.countType]} mode`).setDescription(modeIntro(c)));
+    if (!quiet) announce(guild, c, E('#5865F2', `${MODE_EMOJI[c.countType]} Counting started \u2014 ${MODE_LABEL[c.countType]} mode`).setDescription(modeIntro(c)));
     return { c };
 }
 
@@ -60,7 +61,7 @@ async function triggerRuin(channel, g, c, userId, reason) {
             new ButtonBuilder().setCustomId(`saveuse_${userId}_${prev}_${c.channelId}_${expiresAt}`).setLabel(`Use Save (${g.saves} left)`).setStyle(ButtonStyle.Success),
             new ButtonBuilder().setCustomId(`savedecline_${userId}_${prev}_${c.channelId}_${expiresAt}`).setLabel('Let it reset').setStyle(ButtonStyle.Danger),
         );
-        const prompt = await channel.send({ embeds: [E('#ff9900', '\u26a0\ufe0f Count almost ruined!').setDescription(`<@${userId}> made a mistake! (${reason})\nYou have a **Save** \u2014 use it within **1 minute** to keep the count at **${prev}**!`).addFields({ name: 'Server saves', value: `**${g.saves}**`, inline: true }, { name: 'At risk', value: `**${prev}**`, inline: true })], components: [row] }).catch(e => { console.error('triggerRuin save prompt failed:', e.message); return null; });
+        const prompt = await channel.send(v2c({ embeds: [E('#ff9900', '\u26a0\ufe0f Count almost ruined!').setDescription(`<@${userId}> made a mistake! (${reason})\nYou have a **Save** \u2014 use it within **1 minute** to keep the count at **${prev}**!`).addFields({ name: 'Server saves', value: `**${g.saves}**`, inline: true }, { name: 'At risk', value: `**${prev}**`, inline: true })], components: [row] })).catch(e => { console.error('triggerRuin save prompt failed:', e.message); return null; });
         if (!prompt) { doReset(g, c, userId); return; }
         c.pendingSave = { msgId: prompt.id, userId, prevCount: prev, expiresAt, prevLastUserId, prevConsecutive, prevLastMessageId }; saveChan(c);
         setTimeout(async () => {
@@ -68,11 +69,11 @@ async function triggerRuin(channel, g, c, userId, reason) {
             if (!fresh?.pendingSave || fresh.pendingSave.expiresAt !== expiresAt) return;
             const gg = await getGuild(gid);
             doReset(gg, fresh, userId);
-            await prompt.edit({ embeds: [ruinEmbed(fresh, gg, '\u{1F4A5} Save expired!', `<@${userId}> didn't use their save in time. Count resets!`, userId)], components: [] }).catch(() => {});
+            await prompt.edit(v2c({ embeds: [ruinEmbed(fresh, gg, '\u{1F4A5} Save expired!', `<@${userId}> didn't use their save in time. Count resets!`, userId)], components: [] })).catch(() => {});
         }, 60_000);
     } else {
         doReset(g, c, userId);
-        await channel.send({ embeds: [ruinEmbed(c, g, '\u{1F4A5} Count ruined!', `<@${userId}> ruined the count! (${reason})\nCount was at **${prev}**.`, userId)] }).catch(e => console.error('ruin msg failed:', e.message));
+        await channel.send(v2c({ embeds: [ruinEmbed(c, g, '\u{1F4A5} Count ruined!', `<@${userId}> ruined the count! (${reason})\nCount was at **${prev}**.`, userId)] })).catch(e => console.error('ruin msg failed:', e.message));
     }
 }
 

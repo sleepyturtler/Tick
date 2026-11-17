@@ -12,32 +12,25 @@ const { FC_AUTOLOAD } = require('./config');
 const SQL_DIR = path.join(__dirname, '..', 'sql');
 const LOCK_KEY = 7270001;   // advisory lock so two instances (e.g. overlapping deploys) can't import the same game twice
 
-async function importFile(dir, file, game) {
-    const client = await pool.connect();
+// Runs one sql file on the given client, holding an advisory lock so two instances can't import the same game twice.
+async function importFile(client, dir, file, game) {
+    await client.query('SELECT pg_advisory_lock($1)', [LOCK_KEY]);
     try {
-        // The pool's short statement timeout is for the bot's normal queries; a big import (and waiting on the lock) needs longer.
-        await client.query('SET statement_timeout = 0');
-        await client.query('SELECT pg_advisory_lock($1)', [LOCK_KEY]);
+        // Check again now that we hold the lock: another instance may have just finished this game.
+        const have = await client.query('SELECT 1 FROM fc_players WHERE game=$1 LIMIT 1', [game]).catch(() => null);
+        if (have && have.rowCount) return false;
+        const started = Date.now();
         try {
-            // Check again now that we hold the lock: another instance may have just finished this game.
-            const have = await client.query('SELECT 1 FROM fc_players WHERE game=$1 LIMIT 1', [game]).catch(() => null);
-            if (have && have.rowCount) return false;
-            const started = Date.now();
-            try {
-                await client.query(fs.readFileSync(path.join(dir, file), 'utf8'));
-            } catch (e) {
-                await client.query('ROLLBACK').catch(() => {});   // the file opens its own transaction; don't leave it hanging
-                throw e;
-            }
-            const n = (await client.query('SELECT COUNT(*) AS n FROM fc_players WHERE game=$1', [game])).rows[0].n;
-            console.log(`Imported ratings for game ${game}: ${n} players (${((Date.now() - started) / 1000).toFixed(1)}s)`);
-            return true;
-        } finally {
-            await client.query('SELECT pg_advisory_unlock($1)', [LOCK_KEY]).catch(() => {});
+            await client.query(fs.readFileSync(path.join(dir, file), 'utf8'));
+        } catch (e) {
+            await client.query('ROLLBACK').catch(() => {});   // the file opens its own transaction; don't leave it hanging
+            throw e;
         }
+        const n = (await client.query('SELECT COUNT(*) AS n FROM fc_players WHERE game=$1', [game])).rows[0].n;
+        console.log(`Imported ratings for game ${game}: ${n} players (${((Date.now() - started) / 1000).toFixed(1)}s)`);
+        return true;
     } finally {
-        await client.query('RESET statement_timeout').catch(() => {});
-        client.release();
+        await client.query('SELECT pg_advisory_unlock($1)', [LOCK_KEY]).catch(() => {});
     }
 }
 
@@ -48,13 +41,22 @@ async function loadMissingRatings(dir = SQL_DIR) {
     try { files = fs.readdirSync(dir).filter(f => /^fc\d{2}\.sql$/.test(f)).sort().reverse(); }
     catch { return 0; }   // no sql folder deployed: nothing to do
     let imported = 0;
-    for (const file of files) {
-        const game = parseInt(file.slice(2, 4), 10);
-        try {
-            const have = await pool.query('SELECT 1 FROM fc_players WHERE game=$1 LIMIT 1', [game]);
-            if (have.rowCount) continue;
-            if (await importFile(dir, file, game)) imported++;
-        } catch (e) { console.error(`ratings import ${file}:`, e.message); }
+    // One connection for the whole job with the statement timeout off: the pool's short timeout is for the bot's normal queries,
+    // while a big import (or waiting for the lock) needs longer.
+    const client = await pool.connect();
+    try {
+        await client.query('SET statement_timeout = 0');
+        for (const file of files) {
+            const game = parseInt(file.slice(2, 4), 10);
+            try {
+                const have = await client.query('SELECT 1 FROM fc_players WHERE game=$1 LIMIT 1', [game]);
+                if (have.rowCount) continue;
+                if (await importFile(client, dir, file, game)) imported++;
+            } catch (e) { console.error(`ratings import ${file}:`, e.message); }
+        }
+    } finally {
+        await client.query('RESET statement_timeout').catch(() => {});
+        client.release();
     }
     return imported;
 }

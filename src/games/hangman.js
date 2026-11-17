@@ -2,12 +2,12 @@ const { ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBui
 const store = require('./store');
 const render = require('./render');
 const { HANGMAN_WORDS } = require('./data');
-const { png, mention, reject, pick, sendTo, deleteMessage, newId, displayName, EPH, withLock } = require('./common');
+const { png, mention, reject, pick, sendTo, deleteMessage, newId, displayName, EPH, withLock, stopButton, textPayload } = require('./common');
 const { E } = require('../ui');
 
 const info = {
     id: 'hangman', label: 'Hangman', emoji: '\u{1F524}', short: 'Guess the word by typing single letters in chat',
-    how: 'For the whole channel. The host types a secret word or picks a random one, then everyone guesses by typing a single letter in the chat. Accented letters count as their own letter. Six wrong letters and the drawing is finished.',
+    how: 'For the whole channel. The host types a secret word or picks a random one, then everyone guesses by typing a single letter in the chat, or the whole word to win straight away. Accented letters count as their own letter. Six wrong letters and the drawing is finished.',
 };
 const MAX_WRONG = 6;
 const byChannel = new Map();   // channelId -> game id, so a typed letter finds its game without a database lookup
@@ -26,14 +26,17 @@ const solved = s => Array.from(s.word).every(ch => !isLetter(ch) || s.guessed.in
 function payload(game, final) {
     const s = game.state, over = !!final;
     const board = png(render.hangman({ slots: slotsOf(s, over && final === 'lost'), wrong: s.wrong, stage: s.wrong.length, reveal: final }), 'board.png');
-    let desc = over ? (final === 'won' ? `\u{1F3C6} Solved by ${mention(s.lastGuesser)}! The word was **${s.word}**.` : `\u{1F480} Out of guesses. The word was **${s.word}**.`)
+    let desc = over ? (final === 'won' ? `\u{1F3C6} Solved by ${mention(s.lastGuesser)}!${s.viaFull ? ' They typed the whole word.' : ''} The word was **${s.word}**.` : `\u{1F480} Out of guesses. The word was **${s.word}**.`)
         : `Type a **single letter** in this channel to guess. Longer messages are ignored.\n${s.hostSet ? `${mention(s.hostId)} chose the word and can't guess.` : `Random word, started by ${mention(s.hostId)}.`}`;
-    return { embeds: [E(over ? (final === 'won' ? '#57f287' : '#ed4245') : '#5865F2', '\u{1F524} Hangman').setDescription(desc).setImage('attachment://board.png')], components: [], files: [board], attachments: [] };
+    if (over) return textPayload(`${info.emoji} **${info.label}**: ${desc}`);   // a finished game leaves one line of text instead of the board
+    return { embeds: [E(over ? (final === 'won' ? '#57f287' : '#ed4245') : '#5865F2', '\u{1F524} Hangman').setDescription(desc).setImage('attachment://board.png')], components: over ? [] : [new ActionRowBuilder().addComponents(stopButton(game))], files: [board], attachments: [] };
 }
 
 async function start(interaction) {
-    if (byChannel.has(interaction.channelId)) return interaction.update({ embeds: [E('#ff4444', 'Already running').setDescription('There is already a hangman game in this channel. Finish it first.')], components: [] });
+    const running = byChannel.get(interaction.channelId);
+    if (running && store.get(running)) return interaction.update({ embeds: [E('#ff4444', 'Already running').setDescription('There is already a hangman game in this channel (or someone is setting one up). Only one at a time, so finish or wait for it first.')], components: [] });
     const game = { id: newId(), type: 'hangman', guildId: interaction.guild.id, channelId: interaction.channelId, messageId: null, hostId: interaction.user.id, userIds: [interaction.user.id], phase: 'setup', state: {}, createdAt: Date.now() };
+    byChannel.set(game.channelId, game.id);   // reserved right away, not only once the word is chosen
     store.add(game);
     const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId(`g:${game.id}:random`).setLabel('Random word').setStyle(ButtonStyle.Primary),
@@ -66,24 +69,33 @@ async function handle(interaction, game, action) {
     }
 }
 
-// A typed message in a hangman channel. Only a message that is exactly one letter counts.
+// A typed message in a hangman channel. A message that is exactly one letter is a guess, and a message that is exactly the secret word wins.
+// Anything else is just chat and is ignored.
 async function onMessage(message) {
     if (!message.guild || message.author.bot) return false;
     const id = byChannel.get(message.channelId);
     if (!id) return false;
-    const letter = norm(message.content.trim());
-    if (!isLetter(letter)) return false;
     const game = store.get(id);
     if (!game || game.phase !== 'play') return false;
+    const text = norm(message.content.trim().replace(/\s+/g, ' '));
+    const single = isLetter(text), full = !single && text === norm(game.state.word.replace(/\s+/g, ' '));
+    if (!single && !full) return false;
     await withLock(game.id, async () => {
         const s = game.state;
         if (s.hostSet && message.author.id === s.hostId) return message.react('\u{1F6AB}').catch(() => {});
-        if (s.guessed.includes(letter) || s.wrong.includes(letter)) return message.react('\u{1F501}').catch(() => {});
-        const hit = norm(s.word).includes(letter);
-        (hit ? s.guessed : s.wrong).push(letter);
-        s.lastGuesser = message.author.id;
-        message.react(hit ? '\u2705' : '\u274C').catch(() => {});
-        const final = solved(s) ? 'won' : s.wrong.length >= MAX_WRONG ? 'lost' : null;
+        if (!game.userIds.includes(message.author.id)) game.userIds.push(message.author.id);   // guessers count as players, so they can press Stop
+        let final = null;
+        if (full) {
+            s.guessed = [...new Set(Array.from(s.word).filter(isLetter).map(norm))]; s.lastGuesser = message.author.id; s.viaFull = true; final = 'won';
+            message.react('\u2705').catch(() => {});
+        } else {
+            if (s.guessed.includes(text) || s.wrong.includes(text)) return message.react('\u{1F501}').catch(() => {});
+            const hit = norm(s.word).includes(text);
+            (hit ? s.guessed : s.wrong).push(text);
+            s.lastGuesser = message.author.id;
+            message.react(hit ? '\u2705' : '\u274C').catch(() => {});
+            final = solved(s) ? 'won' : s.wrong.length >= MAX_WRONG ? 'lost' : null;
+        }
         const old = game.messageId;
         const msg = await sendTo(game.channelId, payload(game, final));   // new board at the bottom, old one removed
         await deleteMessage(game.channelId, old);
@@ -93,7 +105,7 @@ async function onMessage(message) {
     return true;
 }
 
-const onRestore = g => { if (g.phase === 'play') byChannel.set(g.channelId, g.id); };
+const onRestore = g => { if (g.phase === 'play' || g.phase === 'setup') byChannel.set(g.channelId, g.id); };
 const onExpire = g => { if (byChannel.get(g.channelId) === g.id) byChannel.delete(g.channelId); };
 
 module.exports = { info, start, handle, payload, onMessage, onRestore, onExpire, solved, slotsOf };
