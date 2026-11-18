@@ -1,5 +1,5 @@
 // Small helpers shared by every game.
-const { AttachmentBuilder, MessageFlags, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { AttachmentBuilder, MessageFlags, ButtonBuilder, ButtonStyle, PermissionFlagsBits } = require('discord.js');
 const client = require('../client');
 const v2 = require('../v2');
 
@@ -53,4 +53,19 @@ const forfeitButton = game => new ButtonBuilder().setCustomId(`g:${game.id}:forf
 // Stop for every game, plus Forfeit in the 1v1 games. Spread it into a row: addComponents(...endButtons(game)).
 const endButtons = game => (ONE_V_ONE.has(game.type) ? [stopButton(game), forfeitButton(game)] : [stopButton(game)]);
 
-module.exports = { textPayload, stopButton, forfeitButton, endButtons, EPH, newId, png, mention, displayName, reject, withFiles, pick, shuffle, getChannel, sendTo, editMessage, deleteMessage, withLock };
+// Every game posts its board as a message with an image, so these are needed in the channel. Returns the names of the ones Tick lacks.
+// (appPermissions is what Discord says Tick may do in this channel; when neither it nor the channel can tell, nothing is blocked.)
+function missingPerms(interaction) {
+    const p = interaction.appPermissions ?? interaction.channel?.permissionsFor?.(interaction.guild?.members?.me);
+    if (!p || typeof p.has !== 'function') return [];
+    const thread = !!interaction.channel?.isThread?.();
+    const need = [['ViewChannel', 'View Channel'], [thread ? 'SendMessagesInThreads' : 'SendMessages', thread ? 'Send Messages in Threads' : 'Send Messages'], ['AttachFiles', 'Attach Files']];
+    return need.filter(([flag]) => !p.has(PermissionFlagsBits[flag])).map(([, label]) => label);
+}
+// The reply for a channel where games cannot run, or null when everything needed is there.
+function permsBlock(interaction) {
+    const missing = missingPerms(interaction);
+    return missing.length ? { content: `I can't run games here: I'm missing **${missing.join(', ')}** in this channel. Give me ${missing.length > 1 ? 'those permissions' : 'that permission'} and try again.`, ...EPH } : null;
+}
+
+module.exports = { missingPerms, permsBlock, textPayload, stopButton, forfeitButton, endButtons, EPH, newId, png, mention, displayName, reject, withFiles, pick, shuffle, getChannel, sendTo, editMessage, deleteMessage, withLock };

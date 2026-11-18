@@ -111,7 +111,7 @@ async function handle(interaction) {
     if (action === 'frmake') {
         if (g.failRoleId) { await refuse(interaction, 'A fail role is already set.'); return true; }
         let role;
-        try { role = await interaction.guild.roles.create({ name: 'Ruined the Count', color: 0xff4444, permissions: [], reason: 'Tick fail role' }); }
+        try { role = await interaction.guild.roles.create({ name: 'Ruined the Count', colors: { primaryColor: 0xff4444 }, permissions: [], reason: 'Tick fail role' }); }
         catch { await interaction.reply({ embeds: [E('#ff4444', 'Could not create the role').setDescription('I need the **Manage Roles** permission. You can also pick an existing role in the menu.')], ...ep() }); return true; }
         const err = validateFailRole(interaction.guild, role);
         if (err) { await interaction.reply({ embeds: [E('#ff4444', 'Fail role not set').setDescription(err)], ...ep() }); return true; }

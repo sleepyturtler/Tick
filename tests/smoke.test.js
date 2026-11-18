@@ -87,3 +87,29 @@ test('smoke: command definitions meet Discord\'s limits (names, descriptions, ch
     for (const c of require('../src/commands').buildCommands()) walk(c, `/${c.name}`);
     assert.deepEqual(bad, []);
 });
+
+// ---------- players in /calculate ----------
+const rating = (game, name, overall) => ({ game, name, alt_name: '', norm_name: name.toLowerCase(), norm_alt: '', overall });
+function addPlayers() {
+    const { db } = require('./lib');
+    db().players.push(rating(27, 'Lamine Yamal', 81), rating(27, 'Pedri', 90), rating(17, 'Cristiano Ronaldo', 94));
+}
+test('/calculate: player tags work, the sum is shown with each rating, and the server setting does not matter', async () => {
+    addPlayers();
+    const off = input => () => { state.guildCache.get('g1').playerCount = false; return slash('calculate', null, { input }); };   // players OFF on this server
+    await run([
+        ['a tagged player plus a number', () => slash('calculate', null, { input: 'Lamine Yamal:fc27+10' }), (i, a) => { const t = a.map(textOf).join(' '); assert.ok(t.includes('Result:** 91'), t); assert.ok(t.includes('Lamine Yamal (FC 27): **81**'), t); assert.ok(t.includes('Lamine Yamal:fc27+10'), 'the expression is shown as typed'); }],
+        ['players from two games in one sum', () => slash('calculate', null, { input: 'Pedri:fc27+pedri:fc27+20+Cristiano Ronaldo:fifa17+6+32' }), (i, a) => { const t = a.map(textOf).join(' '); assert.ok(t.includes('Result:** 332'), t); assert.ok(t.includes('Cristiano Ronaldo (FIFA 17): **94**')); }],
+        ['works with player counting switched off', off('Lamine Yamal:fc27+10'), (i, a) => assert.ok(a.map(textOf).join(' ').includes('Result:** 91'))],
+        ['an unknown player is named', () => slash('calculate', null, { input: 'Nobody Real:fc27+1' }), (i, a) => { const t = a.map(textOf).join(' '); assert.ok(t.includes('Player not found') && t.includes('Nobody Real') && t.includes('FC 27'), t); assert.ok(!t.includes("couldn't be evaluated")); }],
+        ['plain maths is unchanged', () => slash('calculate', null, { input: '2+3*4' }), (i, a) => { const t = a.map(textOf).join(' '); assert.ok(t.includes('Result:** 14') && !t.includes('Players'), t); }],
+        ['a number still gives three expressions', () => slash('calculate', null, { input: '100' }), (i, a) => assert.ok(/Copy/.test(JSON.stringify(a[0])))],
+        ['nonsense is still invalid', () => slash('calculate', null, { input: 'hello world' }), (i, a) => assert.ok(a.map(textOf).join(' ').includes("couldn't be evaluated"))],
+    ]);
+});
+test('fc.substitute names the player it could not find', async () => {
+    addPlayers(); const fc = require('../src/fc');
+    let r = await fc.substitute('Nobody Real:fc27+1'); assert.equal(r.unknown, true); assert.deepEqual(r.missing, { name: 'Nobody Real', game: 27 });
+    r = await fc.substitute('Pedri:fc27+nobody:fc27'); assert.deepEqual(r.missing, { name: 'nobody', game: 27 });
+    r = await fc.substitute('Pedri:fc27+1'); assert.equal(r.unknown, false); assert.equal(r.missing, null); assert.equal(r.players[0].ovr, 90);
+});

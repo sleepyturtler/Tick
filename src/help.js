@@ -66,7 +66,7 @@ const PAGES = {
             line('**Constants and functions**', '`pi` `phi` `e` `tau` `sqrt2`\n`ln` `log` `log2` `sqrt(x,n)` `cbrt` `pow(x,n)` `sin` `cos` `tan` `asin` `acos` `atan` `floor` `ceil` `abs` `exp` `round`'),
             line('**Examples**', '`ln(e)` is **1**, `sin(pi)` is **0**, `pi^2` is **10**, `2^8` is **256**, `|3-10|` is **7**'),
             line('**Equations**', 'Type an equation with `x` and the count is the number that solves it. `2x+3=13` counts as **5**, `x^2=25` counts as **5**, and `|x-10|=3` counts as **7** or **13**. An equation that is true for every number, like `x=x`, does not count. Admins can switch equations off.'),
-            line('**Players**', `With player counting on, a football player's name plus a game tag is their EA FC overall rating: \`lamine yamal:fc25\` or \`pedri:fifa19\` (FIFA 15 to FC 27). Tagged players also work inside expressions and equations, like \`lamine yamal:fc25+25\`. A name without a tag is just chat. Look players up with ${cmd('players')}.`),
+            line('**Players**', `Player counting is on by default, and admins can switch it off in ${cmd('counting settings')}. A football player's name plus a game tag is their EA FC overall rating: \`lamine yamal:fc25\` or \`pedri:fifa19\` (FIFA 15 to FC 27). Tagged players also work inside expressions and equations, like \`lamine yamal:fc25+25\`. A name without a tag is just chat. Look players up with ${cmd('players')}.`),
             line('**Calculator**', `${cmd('calculate')} turns a number into 3 expressions, or evaluates an expression you type.`),
         ],
     }),

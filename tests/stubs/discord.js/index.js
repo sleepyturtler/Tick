@@ -41,7 +41,7 @@ class Client extends EventEmitter {
 class PermissionsBitField { constructor() { this.bitfield = 0n; } }
 module.exports = {
     ...out, Client, PermissionsBitField,
-    PermissionFlagsBits: new Proxy({}, { get: (_, p) => (typeof p === 'string' ? 1n : undefined) }),
+    PermissionFlagsBits: (() => { const bits = {}; return new Proxy(bits, { get: (t, p) => (typeof p === 'string' ? (t[p] ??= 1n << BigInt(Object.keys(t).length)) : undefined) }); })(),   // one distinct bit per name, like the real enum
     ButtonStyle: { Primary: 1, Secondary: 2, Success: 3, Danger: 4, Link: 5 }, TextInputStyle: { Short: 1, Paragraph: 2 },
     MessageFlags: { Ephemeral: 64, IsComponentsV2: 32768 }, ChannelType: { GuildText: 0, GuildAnnouncement: 5, GuildForum: 15 },
     GatewayIntentBits: enumProxy(), Partials: enumProxy(), ActivityType: enumProxy(), REST: class {}, Routes: {}, Events: enumProxy(),
