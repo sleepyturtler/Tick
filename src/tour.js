@@ -24,7 +24,7 @@ const pages = () => [
         '**Floors:** every 100 is a checkpoint, so a ruin only drops you back to the last one.',
     ] },
     { title: 'Counting settings', blocks: [
-        `${cmd('counting settings')} is one panel for the rest: the **mode** of a channel, the **max streak** (how many counts in a row one person may make), **expressions** like \`2+3*4\`, **equations** like \`2x+3=13\`, **players** (type \`pedri:fc24\` to count with a footballer's rating) and the **fail role** (a temporary role for whoever ruins the count).`,
+        `${cmd('counting settings')} is one panel for the rest: the **mode** of a channel, the **max streak** (how many counts in a row one person may make), **expressions** like \`2+3*4\`, **equations** like \`2x+3=13\`, **players** (on by default: type \`pedri:fc24\` to count with a footballer's rating) and the **fail role** (a temporary role for whoever ruins the count).`,
         `${cmd('counting view')} shows where everything stands. If someone edits or deletes the latest number, the bot calls it out.`,
     ] },
     { title: 'Party games', blocks: [

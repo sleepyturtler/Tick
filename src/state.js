@@ -13,14 +13,20 @@ const guildCache = new Map(), chanCache = new Map(), guildChans = new Map(), loa
 const flags = { fullyLoaded: false };
 
 function defaultGuild() {
-    return { maxStreak: 1, allowExpressions: true, accessRoleId: null, saves: 0, savesUsed: 0, failRoleId: null, failRoleMinutes: 10, allowEquations: true, playerCount: false, migratedToChannels: true };
+    return { maxStreak: 1, allowExpressions: true, accessRoleId: null, saves: 0, savesUsed: 0, failRoleId: null, failRoleMinutes: 10, allowEquations: true, playerCount: true, playersOnByDefault: true, migratedToChannels: true };
 }
 function defaultChannel(gid, cid, type = 'interactive') {
     const c = { guildId: gid, channelId: cid, countType: type, current: 0, lastUserId: null, consecutiveCount: 0, lastMessageId: null, highScore: 0, countdownCycles: 0, countdownStart: COUNTDOWN_START, modifier: null, modifierLabel: null, checkpoint: 0 };
     resetChannel(c, true);
     return c;
 }
-const normGuild = d => ({ ...defaultGuild(), ...(d || {}) });
+// Player counting became on by default. A server saved before that has no `playersOnByDefault` marker and gets it switched on, once.
+// The marker is saved with the rest of the settings, so an admin who turns it off afterwards keeps it off (and until the next save the same switch-on simply repeats).
+const normGuild = d => {
+    const g = { ...defaultGuild(), ...(d || {}) };
+    if (d && !d.playersOnByDefault) g.playerCount = true;
+    return g;
+};
 function normChan(d) {
     const c = { ...defaultChannel(d.guildId, d.channelId), ...d };
     if (c.countType === 'random') c.countType = 'modifiers';

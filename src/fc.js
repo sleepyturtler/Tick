@@ -108,12 +108,13 @@ const TAG_TEST = /:\s*(?:fc|fifa)\s*\d{2}(?!\d)/i;
 const hasTag = raw => typeof raw === 'string' && TAG_TEST.test(raw);
 const MAX_TAGS = 4, MAX_TEXT = 200;
 
-// -> { text, plain, players: [{ name, game, ovr }], unknown }
+// -> { text, plain, players: [{ name, game, ovr }], unknown, missing }
 //   text   the message with every player replaced by "(81)", ready for the math parser
 //   plain  the same with bare numbers, only used to tell whether the message looks like an expression
 //   unknown  true when a tagged name could not be found (the count is then neither accepted nor ruined)
+//   missing  { name, game } of that name as typed, so a reply can say which one
 async function substitute(raw) {
-    const out = { text: raw, plain: raw, players: [], unknown: false };
+    const out = { text: raw, plain: raw, players: [], unknown: false, missing: null };
     if (!hasTag(raw) || raw.length > MAX_TEXT) return out;
     let text = raw, plain = raw, pos = 0;
     for (let tags = 0; tags < MAX_TAGS; tags++) {
@@ -142,7 +143,7 @@ async function substitute(raw) {
                 if (p) { hit = p; from = last.at + dash + 1; }
             }
         }
-        if (!hit) { out.unknown = true; return out; }
+        if (!hit) { out.unknown = true; out.missing = { name: words.slice(-Math.min(4, words.length)).map(x => x.s).join(' '), game }; return out; }
         // every earlier replacement added two characters (the brackets) to text but not to plain, so shift the indexes for plain
         const shift = 2 * out.players.length;
         out.players.push({ name: hit.name, game, ovr: hit.ovr });

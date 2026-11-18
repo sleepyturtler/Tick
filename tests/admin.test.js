@@ -86,8 +86,9 @@ test('settings: every control edits the panel in place instead of posting a new 
     for (const [id, extra] of cases) { const i = press(id, extra); await settings.handle(i); assert.equal(i.updated.length, 1, `${id} updated the panel`); assert.equal(i.replied.length, 0, `${id} posted nothing new`); withinLimits(i.updated[0], id); }
 });
 test('settings: players toggle', async () => {
-    const { g } = await setup(); const i = press('cs_players_c1');
-    await settings.handle(i); assert.equal(g.playerCount, true); assert.ok(textOf(shown(i)).includes('Players:** On'));
+    const { g } = await setup(); assert.equal(g.playerCount, true, 'on by default'); assert.ok(textOf(v2.convert(settings.panel('g1', g, null))).includes('Players:** On'));
+    let i = press('cs_players_c1'); await settings.handle(i); assert.equal(g.playerCount, false); assert.ok(textOf(shown(i)).includes('Players:** Off'));
+    i = press('cs_players_c1'); await settings.handle(i); assert.equal(g.playerCount, true); assert.ok(textOf(shown(i)).includes('Players:** On'));
 });
 test('settings: max streak opens a modal, and only 1 to 100 is accepted', async () => {
     const { g } = await setup();
@@ -112,7 +113,7 @@ test('settings: fail role controls are administrator only', async () => {
     for (const id of ['cs_frmake_c1', 'cs_frmins_c1', 'cs_froff_c1', 'cs_failrole_c1']) { const i = make(id, { values: ['r1'], roles: [{ id: 'r1', editable: true }] }); await settings.handle(i); assert.ok(textOf(i.replied[0]).includes('administrators'), id); }
     assert.equal(g.failRoleId, null);
     // the other controls still work for the access role
-    const i = make('cs_players_c1'); await settings.handle(i); assert.equal(g.playerCount, true);
+    const i = make('cs_players_c1'); await settings.handle(i); assert.equal(g.playerCount, false, 'the access role can switch it off (it starts on)');
 });
 test('settings: pick, create, time and switch off the fail role', async () => {
     const { g } = await setup();
@@ -125,6 +126,12 @@ test('settings: pick, create, time and switch off the fail role', async () => {
     i = press('cs_froff_c1'); await settings.handle(i); assert.equal(g.failRoleId, null); assert.ok(textOf(shown(i)).includes('Fail role:** Off'));
     i = press('cs_frmake_c1'); await settings.handle(i); assert.equal(g.failRoleId, 'newrole');
     withinLimits(shown(i), 'panel after creating a role');
+});
+test('settings: the created fail role uses the current colour option', async () => {
+    await setup(); const seen = []; const i = press('cs_frmake_c1');
+    i.guild.roles.create = async o => { seen.push(o); return { id: 'nr', editable: true, managed: false, ...o }; };
+    await settings.handle(i);
+    assert.equal(seen.length, 1); assert.deepEqual(seen[0].colors, { primaryColor: 0xff4444 }); assert.equal('color' in seen[0], false, 'the old option is not used');
 });
 test('settings: anti-cheat is always on, even for servers that had switched it off', async () => {
     const { chans } = await setup({ guild: { antiCheat: false } }); const c = chans[0];
@@ -372,4 +379,27 @@ test('wiring: /counting settings, /transfer, an old /setup button and the tour b
     i = await fire(wire({ isChatInputCommand: () => false, isButton: () => true, customId: 'tr_no', message: { id: 'm', flags: 32768, embeds: [] } }));
     assert.ok(i.updated.length === 1 && textOf(i.updated[0]).includes('Cancelled'), 'transfer cancel');
     });
+});
+
+// ---------- player counting is on by default ----------
+test('players: a new server has player counting on, and a tagged player counts without touching any setting', async () => {
+    assert.equal(state.defaultGuild().playerCount, true); assert.equal(state.normGuild(null).playerCount, true); assert.equal(state.normGuild(undefined).playerCount, true);
+    const { chans } = await setup({ guild: { maxStreak: 0 } }); const c = chans[0];
+    db().players.push({ game: 25, name: 'Lamine Yamal', alt_name: '', norm_name: 'lamine yamal', norm_alt: '', overall: 81 });
+    c.current = 105; const ch = fakeChannel('c1');
+    const m = fakeMessage({ content: 'Lamine Yamal:fc25+25', userId: 'u5', channel: ch }); await handleCount(m); await tick();
+    assert.equal(c.current, 106, 'the tagged player counted');
+});
+test('players: servers saved before the change are switched on once, and an admin turning it off sticks', async () => {
+    const old = { maxStreak: 3, playerCount: false, failRoleId: 'r1' };                    // saved by an older version: no marker
+    let g = state.normGuild(old); assert.equal(g.playerCount, true, 'switched on'); assert.equal(g.playersOnByDefault, true); assert.equal(g.maxStreak, 3, 'nothing else changes'); assert.equal(g.failRoleId, 'r1');
+    assert.equal(state.normGuild({ playerCount: true }).playerCount, true, 'already on stays on');
+    // the admin turns it off: the saved copy carries the marker, so the next load leaves it off
+    g.playerCount = false; const saved = JSON.parse(JSON.stringify(g));
+    assert.equal(state.normGuild(saved).playerCount, false, 'turned off after the switch-on stays off');
+    // a copy without the marker (never saved since) repeats the switch-on, with the same result as before
+    assert.equal(state.normGuild(old).playerCount, true);
+    // new and legacy data both load through getGuild too
+    db().reset(); state.guildCache.clear(); state.loadedGuilds.clear();
+    assert.equal((await state.getGuild('gnew')).playerCount, true);
 });

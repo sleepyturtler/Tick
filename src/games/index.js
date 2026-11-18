@@ -8,7 +8,7 @@ const { chanCache, countingIdFor } = require('../state');
 const { E } = require('../ui');
 const store = require('./store');
 const elo = require('./elo');
-const { EPH, newId, mention, displayName, reject, sendTo, editMessage, deleteMessage, withLock, textPayload } = require('./common');
+const { EPH, newId, mention, displayName, reject, sendTo, editMessage, deleteMessage, withLock, textPayload, permsBlock } = require('./common');
 
 const MODULES = {
     tictactoe: require('./tictactoe'),
@@ -75,6 +75,7 @@ async function onPick(interaction) {
     const type = interaction.values[0], mod = MODULES[type];
     if (!mod) return;
     if (chanCache.has(countingIdFor(interaction.channelId))) return interaction.update({ embeds: [E('#ff4444', 'Not in a counting channel').setDescription('Start games in a different channel.')], components: [] });
+    const blocked = permsBlock(interaction); if (blocked) return interaction.update({ embeds: [E('#ff4444', 'Missing permissions').setDescription(blocked.content)], components: [] });
     await mod.start(interaction, { postInvite });
 }
 
@@ -125,6 +126,7 @@ async function handleInteraction(interaction) {
     if (interaction.isChatInputCommand?.() && interaction.commandName === 'game') {
         if (!interaction.guild) { await interaction.reply({ content: 'Server only.', ...EPH }); return true; }
         if (chanCache.has(countingIdFor(interaction.channelId))) { await interaction.reply({ content: "Games can't be started in a counting channel. Use another channel.", ...EPH }); return true; }
+        const blocked = permsBlock(interaction); if (blocked) { await interaction.reply(blocked); return true; }
         await interaction.reply({ ...pickerPayload(interaction.user.id, interaction.channelId), ...EPH });
         return true;
     }

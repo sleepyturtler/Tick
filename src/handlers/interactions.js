@@ -5,6 +5,7 @@ const { updateUserStat } = require('../db');
 const { chanCache, channelsOf, getGuild, saveGuild, saveChan, removeCountingChannel, hasPerm, showCur, channelLine, resolveCounting } = require('../state');
 const { expectedNext, nextText, modeIntro, resetChannel } = require('../modes');
 const { safeMath, generateExpressions } = require('../math');
+const fc = require('../fc');
 const { switchMode, announce, addCountingChannel, doReset, ruinEmbed } = require('../ruin');
 const {
     E, ep, buildUserStatsEmbed, buildServerStatsEmbed, buildServerLbEmbed, buildGlobalUsersEmbed, buildGlobalServersEmbed,
@@ -143,10 +144,20 @@ async function onInteraction(interaction){
         if(cmd==='invite')return interaction.reply({embeds:[E('#5865F2','Invite Counting Bot').setDescription(`[**Invite me!**](${inviteUrl(client.user.id)})`).addFields({name:'Permissions',value:'View Channels \u00b7 Send Messages (+ in Threads) \u00b7 Add Reactions \u00b7 Read History \u00b7 Embed Links \u00b7 Manage Messages \u00b7 Manage Roles (only needed for fail roles)'})],...ep()});
         if(cmd==='calculate'){
             await interaction.deferReply(ep());
-            const input=options.getString('input').trim(),evaluated=safeMath(input),looksLikeNumber=/^[\d]+$/.test(input.replace(/\s/g,''));
+            const input=options.getString('input').trim();
+            // Player tags work here too ("lamine yamal:fc27+10"), whatever the server's player counting setting says: this is only a calculator.
+            let rated=null,evaluated;
+            if(fc.hasTag(input)){
+                let sub;try{sub=await fc.substitute(input);}catch(e){console.error('calculate players:',e.message);return interaction.editReply({embeds:[E('#ff4444','Player lookup failed').setDescription('Player ratings are not available right now. Try again in a moment.')]});}
+                if(sub.unknown){const m=sub.missing;return interaction.editReply({embeds:[E('#ff4444','Player not found').setDescription(m?`I couldn't find **${m.name}** in ${fc.gameLabel(m.game)}. Check the spelling, and write it with its game tag, like \`${m.name}:fc25\`.`:`I couldn't find one of the players in \`${input}\`.`)]});}
+                if(sub.players.length)rated=sub.players;
+                evaluated=safeMath(sub.text);
+            }else evaluated=safeMath(input);
+            const looksLikeNumber=/^[\d]+$/.test(input.replace(/\s/g,''));
             if(looksLikeNumber&&evaluated!==null){const exprs=generateExpressions(evaluated);const copyRow=new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(`calc_copy_0_${exprs[0]}`).setLabel(`Copy: ${exprs[0]}`).setStyle(ButtonStyle.Secondary),new ButtonBuilder().setCustomId(`calc_copy_1_${exprs[1]}`).setLabel(`Copy: ${exprs[1]}`).setStyle(ButtonStyle.Secondary),new ButtonBuilder().setCustomId(`calc_copy_2_${exprs[2]}`).setLabel(`Copy: ${exprs[2]}`).setStyle(ButtonStyle.Secondary),);return interaction.editReply({embeds:[E('#5865F2',`Ways to write ${evaluated}`).setDescription(`3 expressions for **${evaluated}**:`).addFields(...exprs.map((x,i)=>({name:`${['\u0031\ufe0f\u20e3','\u0032\ufe0f\u20e3','\u0033\ufe0f\u20e3'][i]} \`${x}\``,value:`= **${safeMath(x)??evaluated}**`,inline:true}))).setFooter({text:'Supports: + - * / ^ pi phi e tau sqrt2 \u00b7 ln log sin cos tan sqrt cbrt'})],components:[copyRow]});}
             if(evaluated!==null){
                 const resultEmbed=E('#5865F2','Result').addFields({name:'Expression',value:`\`${input}\``,inline:true},{name:'Result',value:`**${evaluated}**`,inline:true}).setFooter({text:'Rounded to nearest whole number'});
+                if(rated)resultEmbed.addFields({name:'Players',value:rated.map(p=>`${p.name} (${fc.gameLabel(p.game)}): **${p.ovr}**`).join('\n')});
                 const canCopy=Buffer.byteLength(`calc_copy_0_${input}`,'utf8')<=100;
                 const reply={embeds:[resultEmbed]};
                 if(canCopy)reply.components=[new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(`calc_copy_0_${input}`).setLabel('Copy expression').setStyle(ButtonStyle.Secondary))];
