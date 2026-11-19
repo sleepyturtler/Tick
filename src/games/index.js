@@ -6,6 +6,7 @@ const client = require('../client');
 const { cmd } = require('../mentions');
 const { chanCache, countingIdFor } = require('../state');
 const { E } = require('../ui');
+const v2 = require('../v2');
 const store = require('./store');
 const elo = require('./elo');
 const { EPH, newId, mention, displayName, reject, sendTo, editMessage, deleteMessage, withLock, textPayload, permsBlock } = require('./common');
@@ -25,18 +26,16 @@ const ORDER = ['tictactoe', 'connect4', 'hangman', 'wyr', 'tod', 'impostor', 'gu
 const command = new SlashCommandBuilder().setName('game').setDescription('Play a party game with the server');
 
 function pickerPayload(userId, channelId) {
-    const lines = ORDER.map(t => { const i = MODULES[t].info; return `${i.emoji} **${i.label}**\n${i.how}`; });
-    const embed = E('#5865F2', '\u{1F3AE} Party games').setDescription(`Pick a game from the list below. Here is how each one works:\n\n${lines.join('\n\n')}`);
+    // One block per game, so the card puts a divider between every two of them.
+    const games = ORDER.map(t => { const i = MODULES[t].info; return `${i.emoji} **${i.label}**\n${i.how}`; });
     const select = new StringSelectMenuBuilder().setCustomId('g:pick').setPlaceholder('Choose a game to start')
         .addOptions(ORDER.map(t => { const i = MODULES[t].info; return { label: i.label, description: i.short.slice(0, 100), value: t, emoji: i.emoji }; }));
     const rows = [new ActionRowBuilder().addComponents(select)];
     const mine = store.forUserInChannel(userId, channelId).filter(g => g.phase !== 'invite' && g.phase !== 'setup').slice(0, 5);
-    if (mine.length) {
-        rows.push(new ActionRowBuilder().addComponents(mine.map(g => new ButtonBuilder().setCustomId(`g:cont:${g.id}`).setLabel(`Continue: ${MODULES[g.type].info.label}`.slice(0, 80)).setStyle(ButtonStyle.Success))));
-        embed.setFooter({ text: 'Your unfinished games in this channel have a Continue button.' });
-    }
+    if (mine.length) rows.push(new ActionRowBuilder().addComponents(mine.map(g => new ButtonBuilder().setCustomId(`g:cont:${g.id}`).setLabel(`Continue: ${MODULES[g.type].info.label}`.slice(0, 80)).setStyle(ButtonStyle.Success))));
     rows.push(new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(`g:lb:${[...elo.RATED][0]}`).setLabel('Leaderboards').setStyle(ButtonStyle.Secondary)));
-    return { embeds: [embed], components: rows };
+    const card = v2.card({ title: 'Party games', blocks: ['Pick a game from the list below. Here is how each one works:', ...games], footer: mine.length ? 'Your unfinished games in this channel have a Continue button.' : undefined });
+    return { embeds: [card], components: rows };
 }
 
 // ---------- leaderboards (Elo is bot-wide) ----------
