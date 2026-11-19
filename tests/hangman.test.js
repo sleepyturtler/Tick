@@ -174,3 +174,27 @@ test('games: picking a game re-checks the permission', async () => {
     await games.handleInteraction(i);
     assert.equal(store.all().length, 0, 'no game was created'); assert.ok(textOf(i.updated[0]).includes('Attach Files'));
 });
+
+// ---------- the /game picker ----------
+const container = p => v2.convert(p).components.find(n => n.type === 17);
+test('picker: a divider between every two games, every game with its how-to, same dropdown as before', () => {
+    fresh();
+    const p = games.pickerPayload('u1', 'c1'), c = container(p), kids = c.components;
+    const at = games.ORDER.map(t => kids.findIndex(n => n.type === 10 && n.content.includes(games.MODULES[t].info.label)));
+    assert.ok(at.every(k => k >= 0), 'every game has its own block'); assert.deepEqual([...at].sort((a, b) => a - b), at, 'in the usual order');
+    for (let k = 1; k < at.length; k++) assert.ok(kids.slice(at[k - 1] + 1, at[k]).some(n => n.type === 14), `a divider between ${games.ORDER[k - 1]} and ${games.ORDER[k]}`);
+    for (const t of games.ORDER) assert.ok(textOf({ components: [c] }).includes(games.MODULES[t].info.how), `${t} still explains itself`);
+    assert.ok(kids.slice(0, at[0]).some(n => n.type === 14), 'a divider after the intro');
+    const menu = v2.convert(p).components.find(n => n.type === 1).components[0];
+    assert.equal(menu.custom_id, 'g:pick'); assert.deepEqual(menu.options.map(o => o.value), games.ORDER);
+});
+test('picker: the worst case (five Continue buttons and the Leaderboards button) stays within the limits', () => {
+    fresh();
+    for (let k = 0; k < 5; k++) store.add({ id: `w${k}`, type: games.ORDER[k % 4], guildId: 'g1', channelId: 'c1', messageId: 'm', userIds: ['u1'], phase: 'play', state: {}, createdAt: Date.now() });
+    const p = v2.convert(games.pickerPayload('u1', 'c1'));
+    assert.ok(v2.count({ components: p.components }) <= 40, `${v2.count({ components: p.components })} components`); assert.ok(v2.textLength({ components: p.components }) <= 4000);
+    const ids = customIds(p); assert.equal(new Set(ids).size, ids.length, 'no duplicate ids'); assert.equal(ids.filter(x => x.startsWith('g:cont:')).length, 5);
+    assert.ok(textOf(p).includes('Continue button'), 'the footer is there when there are unfinished games');
+    assert.deepEqual(p.allowedMentions, { parse: [] });
+    fresh(); assert.ok(!textOf(v2.convert(games.pickerPayload('u1', 'c1'))).includes('Continue button'), 'and gone when there are none');
+});
